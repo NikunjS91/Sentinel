@@ -41,25 +41,72 @@ Sentinel is built as a hybrid system across two runtimes, connected by a durable
 - **Agent Plane — FastAPI (Python):** the agent swarm, LLM gateway, and tool layer. Sandboxed and least-privilege.
 - **Event Log — Kafka:** durable, partitioned by incident, the source of truth for events. Decouples the planes so a slow or failed agent never blocks the system.
 
-```
-Alert sources                Control Plane (Java)           Agent Plane (Python)
-─────────────                ────────────────────           ────────────────────
-Alertmanager  ─┐             API Gateway                    Agent Workers (autoscaled)
-Datadog       ─┤             Ingestion (dedupe, correlate)    ├─ Log Analyzer
-PagerDuty     ─┼──webhook──▶ Orchestrator (N replicas)        ├─ Metrics
-Demo app      ─┤             Incident State Machine           ├─ Topology
-Synthetic gen ─┘             Dispatcher / Budget Governor     ├─ History
-                             Aggregator / Reconciler          ├─ Runbook
-                                    │                         └─ Synthesizer
-                                    │                                │
-                                    ▼          KAFKA          ◀───────┘
-                             ◀── durable event log, partitioned by incident ──▶
+```mermaid
+flowchart TB
+    subgraph Sources["Alert Sources"]
+        AM(Alertmanager)
+        DD(Datadog)
+        PD(PagerDuty)
+        DA(Demo App)
+        SG(Synthetic Gen)
+    end
 
-State & data:  Postgres (source of truth + pgvector)  ·  Redis (cache, rate limits,
-idempotency)  ·  S3 (transcripts, replay artifacts)  ·  Secrets manager
+    subgraph CP["Control Plane · Spring Boot (Java)"]
+        direction TB
+        GW[API Gateway]
+        ING[Ingestion\nDedupe · Correlate]
+        SM[Incident State Machine\nRECEIVED → DISPATCHED → SYNTHESIZED]
+        DISP[Dispatcher /\nBudget Governor]
+        AGG[Aggregator /\nReconciler]
+        SSE[SSE Endpoint]
+    end
 
-Cross-cutting:  OpenTelemetry self-observability  ·  circuit breakers / retries /
-dead-letter queues  ·  trust boundaries & multi-tenant isolation  ·  human approval gate
+    subgraph KAFKA["Kafka Event Log  (partitioned by incident_id)"]
+        direction LR
+        T1[incidents.raw]
+        T2[agent.tasks]
+        T3[agent.results]
+        T4[incidents.synthesized]
+        T5[audit.events]
+        T6[agent.tasks.dlq]
+    end
+
+    subgraph AP["Agent Plane · FastAPI (Python)"]
+        direction TB
+        LLM[LLM Gateway\nQueue · Circuit Breaker · Fallback]
+        subgraph Agents["Agent Workers"]
+            A1[Log Analyzer]
+            A2[Metrics]
+            A3[Topology]
+            A4[History]
+            A5[Runbook]
+            A6[Synthesizer]
+        end
+    end
+
+    subgraph Data["State & Data"]
+        PG[(PostgreSQL\n+ pgvector)]
+        RD[(Redis\nCache · Rate Limits)]
+        S3[(S3\nTranscripts · Replay)]
+    end
+
+    subgraph UI["Dashboard · React + Vite"]
+        DASH[Live Incident View\nHuman Approval Gate]
+    end
+
+    Sources -->|webhook| GW
+    GW --> ING --> SM --> DISP
+    DISP -->|agent.tasks| T2
+    T2 --> LLM
+    LLM <--> Agents
+    Agents -->|agent.results| T3
+    T3 --> AGG --> SSE
+    SSE -->|SSE stream| DASH
+    AGG -->|incidents.synthesized| T4
+    SM <--> PG
+    AGG <--> PG
+    CP <--> RD
+    AP --> S3
 ```
 
 ### Design principles
