@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: orchestrator
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/sentinel}
+    username: ${DB_USER:sentinel}
+    password: ${DB_PASSWORD:sentinel}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: always
+
+server:
+  port: 8080
