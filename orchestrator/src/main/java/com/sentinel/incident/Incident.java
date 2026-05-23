@@ -1,0 +1,68 @@
+package com.sentinel.incident;
+
+import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+import java.time.OffsetDateTime;
+import java.util.UUID;
+
+@Entity
+@Table(name = "incidents")
+public class Incident {
+
+    @Id
+    private UUID id;
+
+    @Column(name = "idempotency_key", nullable = false, unique = true)
+    private String idempotencyKey;
+
+    @Column(nullable = false)
+    private String source;
+
+    private String severity;
+
+    @Column(nullable = false)
+    private String state;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "raw_alert", columnDefinition = "jsonb", nullable = false)
+    private String rawAlert;
+
+    @Column(name = "deadline_at")
+    private OffsetDateTime deadlineAt;
+
+    @Column(name = "created_at", nullable = false)
+    private OffsetDateTime createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private OffsetDateTime updatedAt;
+
+    public Incident() {}
+
+    public UUID getId() { return id; }
+    public void setId(UUID id) { this.id = id; }
+
+    public String getIdempotencyKey() { return idempotencyKey; }
+    public void setIdempotencyKey(String idempotencyKey) { this.idempotencyKey = idempotencyKey; }
+
+    public String getSource() { return source; }
+    public void setSource(String source) { this.source = source; }
+
+    public String getSeverity() { return severity; }
+    public void setSeverity(String severity) { this.severity = severity; }
+
+    public String getState() { return state; }
+    public void setState(String state) { this.state = state; }
+
+    public String getRawAlert() { return rawAlert; }
+    public void setRawAlert(String rawAlert) { this.rawAlert = rawAlert; }
+
+    public OffsetDateTime getDeadlineAt() { return deadlineAt; }
+    public void setDeadlineAt(OffsetDateTime deadlineAt) { this.deadlineAt = deadlineAt; }
+
+    public OffsetDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(OffsetDateTime createdAt) { this.createdAt = createdAt; }
+
+    public OffsetDateTime getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(OffsetDateTime updatedAt) { this.updatedAt = updatedAt; }
+}
