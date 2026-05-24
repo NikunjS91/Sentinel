@@ -4,7 +4,7 @@
 
 When a system breaks at 3 AM, an on-call engineer normally spends 20–40 minutes digging through logs, metrics, dashboards, and old tickets just to *understand* the problem. Sentinel replaces that first half-hour with a team of specialized AI agents that investigate in parallel and hand the engineer a single, clear diagnosis with a recommended fix.
 
-> **Project status:** Early active development. The architecture and roadmap are defined; the codebase is being built sprint by sprint. This README describes the target system — see the [Roadmap](#roadmap) for what currently exists.
+> **Project status:** Sprint 1 in progress (Day 3 of 10). The orchestrator (Spring Boot) boots, runs Flyway migrations, provisions Kafka topics, and exposes a health endpoint. See [What's built](#whats-built) for the current state and [Roadmap](#roadmap) for the full plan.
 
 ---
 
@@ -137,6 +137,25 @@ flowchart TB
 
 ---
 
+## What's built
+
+> Sprint 1 · Days 1–3 complete
+
+| Component | Status | Details |
+|---|---|---|
+| Monorepo structure | ✅ Done | All six sprint directories, Docker Compose, CI scaffold |
+| Docker Compose stack | ✅ Done | Postgres 16, Redis 7, Apache Kafka — all healthy |
+| Postgres schema | ✅ Done | Flyway V1 migration: `incidents`, `agent_traces`, `incident_reports`, `audit_log`, `prompt_versions` |
+| JPA entities | ✅ Done | All 5 entities with Hibernate 6 validation; `IncidentRepository` with dedup query |
+| Kafka topics | ✅ Done | All 6 topics provisioned on startup: `incidents.raw`, `agent.tasks`, `agent.results`, `incidents.synthesized`, `audit.events`, `agent.tasks.dlq` |
+| Health endpoint | ✅ Done | `GET /actuator/health` — reports DB + Kafka reachability |
+| Integration tests | ✅ Done | 5 tests passing via Testcontainers (real Postgres + Kafka) |
+| Alert ingestion | 🔜 Day 4 | `POST /alerts` with idempotency dedup + `incidents.raw` publish |
+| Agent plane | 🔜 Sprint 2 | FastAPI skeleton, LLM gateway, Log Analyzer + Metrics agents |
+| React dashboard | 🔜 Sprint 3 | SSE-powered live incident view with human approval gate |
+
+---
+
 ## Getting started
 
 > Setup instructions will be finalized as Sprint 1 lands. Expected flow:
@@ -169,7 +188,7 @@ The project is built in six two-week sprints, scoped as **Phase 1** of a longer 
 
 ### Phase 1 — Diagnosis Swarm (MVP)
 
-- [ ] **Sprint 1** — Foundation: monorepo, Docker Compose, Postgres schema, Kafka topics, Spring Boot + FastAPI skeletons, LLM abstraction layer
+- [x] **Sprint 1** — Foundation: monorepo ✅ · Docker Compose ✅ · Postgres schema ✅ · Kafka topics ✅ · Spring Boot skeleton ✅ · FastAPI + LLM layer 🔜
 - [ ] **Sprint 2** — Demo app emitting realistic telemetry, synthetic incident generator, Log Analyzer + Metrics agents
 - [ ] **Sprint 3** — Synthesizer agent, parallel dispatch, partial-result handling, live React dashboard with SSE
 - [ ] **Sprint 4** — Topology, History (pgvector), and Runbook agents
