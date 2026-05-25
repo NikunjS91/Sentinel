@@ -4,7 +4,7 @@
 
 When a system breaks at 3 AM, an on-call engineer normally spends 20–40 minutes digging through logs, metrics, dashboards, and old tickets just to *understand* the problem. Sentinel replaces that first half-hour with a team of specialized AI agents that investigate in parallel and hand the engineer a single, clear diagnosis with a recommended fix.
 
-> **Project status:** Sprint 1 in progress (Day 3 of 10). The orchestrator (Spring Boot) boots, runs Flyway migrations, provisions Kafka topics, and exposes a health endpoint. See [What's built](#whats-built) for the current state and [Roadmap](#roadmap) for the full plan.
+> **Project status:** Sprint 1 in progress (Day 4 of 10). `POST /alerts` is live — alerts are validated, deduplicated, persisted as `RECEIVED` incidents, and published to Kafka. See [What's built](#whats-built) for the current state and [Roadmap](#roadmap) for the full plan.
 
 ---
 
@@ -139,7 +139,7 @@ flowchart TB
 
 ## What's built
 
-> Sprint 1 · Days 1–3 complete
+> Sprint 1 · Days 1–4 complete
 
 | Component | Status | Details |
 |---|---|---|
@@ -149,8 +149,9 @@ flowchart TB
 | JPA entities | ✅ Done | All 5 entities with Hibernate 6 validation; `IncidentRepository` with dedup query |
 | Kafka topics | ✅ Done | All 6 topics provisioned on startup: `incidents.raw`, `agent.tasks`, `agent.results`, `incidents.synthesized`, `audit.events`, `agent.tasks.dlq` |
 | Health endpoint | ✅ Done | `GET /actuator/health` — reports DB + Kafka reachability |
-| Integration tests | ✅ Done | 5 tests passing via Testcontainers (real Postgres + Kafka) |
-| Alert ingestion | 🔜 Day 4 | `POST /alerts` with idempotency dedup + `incidents.raw` publish |
+| Alert ingestion | ✅ Done | `POST /alerts` — validates, deduplicates (SHA-256 idempotency key), persists `RECEIVED` incident, publishes ID to `incidents.raw`, writes audit row |
+| Integration tests | ✅ Done | 9 tests passing via Testcontainers (real Postgres + Kafka) |
+| Incident state machine | 🔜 Day 5 | Explicit state transitions: `RECEIVED → CLASSIFIED → DISPATCHED → SYNTHESIZED` |
 | Agent plane | 🔜 Sprint 2 | FastAPI skeleton, LLM gateway, Log Analyzer + Metrics agents |
 | React dashboard | 🔜 Sprint 3 | SSE-powered live incident view with human approval gate |
 
@@ -158,27 +159,34 @@ flowchart TB
 
 ## Getting started
 
-> Setup instructions will be finalized as Sprint 1 lands. Expected flow:
+> The control plane (`orchestrator/`) is fully functional. The agent plane and UI are built in later sprints.
 
 ```bash
 # Clone the repository
 git clone https://github.com/NikunjS91/sentinel.git
 cd sentinel
 
-# Start the local stack (Postgres, Redis, Kafka, Prometheus, Loki, Grafana, Ollama)
+# Start the infrastructure (Postgres, Redis, Kafka)
 docker compose up -d
 
-# Run the control plane
+# Run the control plane (starts on port 8080)
 cd orchestrator && ./mvnw spring-boot:run
 
-# Run the agent plane
-cd agents && uvicorn app.main:app --reload
+# Ingest a test alert
+curl -X POST http://localhost:8080/alerts \
+  -H 'Content-Type: application/json' \
+  -d '{"source":"demo","service":"order-api","alertName":"HighErrorRate","fingerprint":"abc123","severity":"critical"}'
+# → 201 Created (new incident)
+# → 200 OK (same alert again — deduplicated)
 
-# Run the dashboard
-cd ui && npm install && npm run dev
+# Check health
+curl http://localhost:8080/actuator/health
+
+# Run the integration tests (requires Docker)
+cd orchestrator && ./mvnw verify
 ```
 
-A demo app and a synthetic incident generator are included so the full pipeline can be exercised locally without a real production environment.
+> The agent plane (`agents/`) and dashboard (`ui/`) are scaffolded but not yet functional — those land in Sprints 2 and 3.
 
 ---
 
