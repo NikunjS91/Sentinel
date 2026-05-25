@@ -2,6 +2,19 @@
 
 ## Sprint 1 — Foundation
 
+### Day 4 — Alert ingestion & idempotency
+- Done: POST /alerts with AlertRequest validation; SHA-256 idempotency key from
+  identity fields (source|service|alertName|fingerprint); IngestService dedups,
+  persists a RECEIVED incident, writes an audit row, publishes the incident id to
+  incidents.raw; AuditWriter component + AuditLogRepository wired; clean 400 on
+  invalid payloads via IngestExceptionHandler. Integration tests TC-1.4.1–1.4.4
+  pass. All 9 tests green.
+- Note: Kafka send after DB commit — known gap (message lost if send fails);
+  addressed in Sprint 5 hardening.
+- Blocked: (none)
+- Next: Day 5 — Incident state machine: explicit, validated, persisted,
+  audited state transitions.
+
 ### Day 1 — Setup
 - Done: monorepo structure, docker-compose, CLAUDE.md, .gitignore,
   .env.example, placeholder CI. Stack comes up healthy. CI green.
