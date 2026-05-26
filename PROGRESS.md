@@ -2,6 +2,17 @@
 
 ## Sprint 1 — Foundation
 
+### Day 5 — Incident state machine
+- Done: IncidentState enum (8 states, terminal flag); IllegalStateTransitionException;
+  IncidentStateMachine with the legal-transition table, canTransition check, and a
+  transactional transition() that persists + audits. Incident entity state field
+  migrated to the enum; Day-4 code (IngestService, IngestController, SchemaIntegrationTest)
+  updated to match. Unit tests TC-1.5.1–1.5.5 and integration test TC-1.5.6 pass.
+  All 21 tests green.
+- Blocked: (none)
+- Next: Day 6 — Classifier & dispatcher: consume incidents.raw, assign severity,
+  drive RECEIVED->CLASSIFIED->DISPATCHED, publish to agent.tasks.
+
 ### Day 4 — Alert ingestion & idempotency
 - Done: POST /alerts with AlertRequest validation; SHA-256 idempotency key from
   identity fields (source|service|alertName|fingerprint); IngestService dedups,

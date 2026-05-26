@@ -72,7 +72,7 @@ class SchemaIntegrationTest {
         first.setId(UUID.randomUUID());
         first.setIdempotencyKey("dup-key-001");
         first.setSource("test");
-        first.setState("RECEIVED");
+        first.setState(com.sentinel.incident.IncidentState.RECEIVED);
         first.setRawAlert("{}");
         first.setCreatedAt(now);
         first.setUpdatedAt(now);
@@ -82,7 +82,7 @@ class SchemaIntegrationTest {
         second.setId(UUID.randomUUID());
         second.setIdempotencyKey("dup-key-001");
         second.setSource("test");
-        second.setState("RECEIVED");
+        second.setState(com.sentinel.incident.IncidentState.RECEIVED);
         second.setRawAlert("{}");
         second.setCreatedAt(now);
         second.setUpdatedAt(now);

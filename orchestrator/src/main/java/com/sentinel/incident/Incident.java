@@ -5,6 +5,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import java.time.OffsetDateTime;
 import java.util.UUID;
+import static jakarta.persistence.EnumType.STRING;
 
 @Entity
 @Table(name = "incidents")
@@ -21,8 +22,9 @@ public class Incident {
 
     private String severity;
 
+    @Enumerated(STRING)
     @Column(nullable = false)
-    private String state;
+    private IncidentState state;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "raw_alert", columnDefinition = "jsonb", nullable = false)
@@ -51,8 +53,8 @@ public class Incident {
     public String getSeverity() { return severity; }
     public void setSeverity(String severity) { this.severity = severity; }
 
-    public String getState() { return state; }
-    public void setState(String state) { this.state = state; }
+    public IncidentState getState() { return state; }
+    public void setState(IncidentState state) { this.state = state; }
 
     public String getRawAlert() { return rawAlert; }
     public void setRawAlert(String rawAlert) { this.rawAlert = rawAlert; }
