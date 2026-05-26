@@ -5,6 +5,7 @@ import com.sentinel.config.KafkaTopicConfig;
 import com.sentinel.incident.AuditWriter;
 import com.sentinel.incident.Incident;
 import com.sentinel.incident.IncidentRepository;
+import com.sentinel.incident.IncidentState;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,7 +48,7 @@ public class IngestService {
         inc.setIdempotencyKey(key);
         inc.setSource(req.source());
         inc.setSeverity(req.severity());
-        inc.setState("RECEIVED");
+        inc.setState(IncidentState.RECEIVED);
         inc.setRawAlert(toJson(req));
         inc.setCreatedAt(OffsetDateTime.now());
         inc.setUpdatedAt(OffsetDateTime.now());

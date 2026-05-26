@@ -24,7 +24,7 @@ public class IngestController {
     }
 
     private IncidentDto toDto(com.sentinel.incident.Incident inc) {
-        return new IncidentDto(inc.getId(), inc.getState(),
+        return new IncidentDto(inc.getId(), inc.getState().name(),
                 inc.getSource(), inc.getSeverity(), inc.getCreatedAt());
     }
 }
