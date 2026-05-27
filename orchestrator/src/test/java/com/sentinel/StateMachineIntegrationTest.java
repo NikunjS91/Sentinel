@@ -47,8 +47,7 @@ class StateMachineIntegrationTest {
 
     @BeforeEach
     void cleanDb() {
-        jdbc.execute("DELETE FROM audit_log");
-        jdbc.execute("DELETE FROM incidents");
+        jdbc.execute("TRUNCATE incidents CASCADE");
     }
 
     // TC-1.5.6: transition persists state and writes audit row in real DB
