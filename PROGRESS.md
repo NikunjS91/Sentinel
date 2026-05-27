@@ -2,6 +2,19 @@
 
 ## Sprint 1 — Foundation
 
+### Day 6 — Classifier & dispatcher
+- Done: AgentTask message record (wire contract decided: camelCase — incidentId, agentName,
+  service, payload — documented in contracts/agent-task-schema.md); rule-based
+  IncidentClassifier (severity p1-p4, never throws); Dispatcher publishes keyed AgentTask
+  messages and is built for many agents; ClassifierListener — the first Kafka consumer —
+  drives RECEIVED→CLASSIFIED→DISPATCHED and dispatches the echo task, with an idempotency
+  guard against at-least-once redelivery. All operations in one @Transactional on
+  onRawIncident to prevent partial re-inserts under concurrent test cleanup. Tests
+  TC-1.6.1–1.6.4 pass. All 25 tests green.
+- Decision: AgentTask wire format is camelCase — recorded in contracts/agent-task-schema.md.
+- Known simplification: listener logs+skips a missing incident; proper DLQ is Sprint 5.
+- Next: Day 7 — FastAPI agent service: the Python plane, a Kafka consumer for agent.tasks.
+
 ### Day 5 — Incident state machine
 - Done: IncidentState enum (8 states, terminal flag); IllegalStateTransitionException;
   IncidentStateMachine with the legal-transition table, canTransition check, and a

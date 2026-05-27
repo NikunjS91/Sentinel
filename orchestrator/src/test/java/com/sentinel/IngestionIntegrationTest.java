@@ -55,8 +55,7 @@ class IngestionIntegrationTest {
 
     @BeforeEach
     void cleanDb() {
-        jdbc.execute("DELETE FROM audit_log");
-        jdbc.execute("DELETE FROM incidents");
+        jdbc.execute("TRUNCATE incidents CASCADE");
     }
 
     // TC-1.4.1: valid alert → 201, one RECEIVED incident in DB
