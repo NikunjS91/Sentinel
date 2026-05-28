@@ -2,6 +2,19 @@
 
 ## Sprint 1 — Foundation
 
+### Day 7 — FastAPI agent service & Kafka worker
+- Done: Python `agents/` service bootstrapped with FastAPI + aiokafka + Pydantic v2.
+  `KafkaWorker` consumes `agent.tasks` (manual commit, `auto_offset_reset=earliest`),
+  publishes a stub `AgentResult` to `agent.results`, routes malformed messages to
+  `agent.tasks.dlq` with a `{"reason":..., "payload_b64":...}` envelope. `GET /health`
+  returns 200 `{"status":"ok"}`. camelCase wire aliases (`incidentId`, `agentName`,
+  `tokensUsed`, `latencyMs`) implemented via `Field(alias=...)` + `populate_by_name=True`.
+  `ruff`, `mypy --strict`, and `pytest` all clean. TC-1.7.1–1.7.4 pass.
+- Decision: Used `confluentinc/cp-kafka` (testcontainers default) — Apache Kafka
+  KRaft image does not emit the startup log pattern that Python testcontainers waits for.
+- Known simplification: `_stub_result()` returns a zero-token stub; real LLM call is Day 8.
+- Next: Day 8 — LLM gateway: replace stub with real Ollama/Anthropic call.
+
 ### Day 6 — Classifier & dispatcher
 - Done: AgentTask message record (wire contract decided: camelCase — incidentId, agentName,
   service, payload — documented in contracts/agent-task-schema.md); rule-based
