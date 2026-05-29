@@ -6,6 +6,9 @@ from typing import Any
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from pydantic import ValidationError
 
+from .agents.echo import echo_agent
+from .llm.base import LLMClient
+from .llm.factory import make_llm_client
 from .models import AgentResult, AgentTask
 from .settings import Settings
 
@@ -18,6 +21,7 @@ class KafkaWorker:
 
     def __init__(self, settings: Settings) -> None:
         self.s = settings
+        self._llm: LLMClient = make_llm_client(settings)
         self._consumer: AIOKafkaConsumer | None = None
         self._producer: AIOKafkaProducer | None = None
         self._task: asyncio.Task[None] | None = None
@@ -68,24 +72,21 @@ class KafkaWorker:
             await self._to_dlq(raw, reason=f"parse_error: {e}")
             return
 
-        result = self._stub_result(task)
+        if task.agent_name == "echo":
+            result = await echo_agent(task, self._llm)
+        else:
+            result = AgentResult(
+                incident_id=task.incident_id,
+                agent_name=task.agent_name,
+                output={"error": f"unknown agent: {task.agent_name}"},
+                status="error",
+            )
 
         assert self._producer is not None
         await self._producer.send_and_wait(
             self.s.topic_agent_results,
             key=str(task.incident_id).encode(),
             value=result.model_dump_json(by_alias=True).encode(),
-        )
-
-    def _stub_result(self, task: AgentTask) -> AgentResult:
-        """Sprint 1 stub. Replaced Day 8 with a real LLM call."""
-        return AgentResult(
-            incident_id=task.incident_id,
-            agent_name=task.agent_name,
-            output={"message": f"stub ack for {task.agent_name}"},
-            tokens_used=0,
-            latency_ms=0,
-            status="ok",
         )
 
     async def _to_dlq(self, raw: bytes, reason: str) -> None:

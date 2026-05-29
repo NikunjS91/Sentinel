@@ -2,6 +2,23 @@
 
 ## Sprint 1 — Foundation
 
+### Day 8 — LLM abstraction & echo agent
+- Done: `LLMClient` Protocol + normalized `LLMResponse`; `OllamaClient` (real, with
+  60s explicit timeout, `stream=False`); `AnthropicClient`/`GroqClient` stubbed
+  (`NotImplementedError`, land Sprint 5); `make_llm_client` factory selecting by
+  `LLM_BACKEND`; `echo_agent` calls the LLM and wraps text/tokens/latency, failing into
+  `status=error` result rather than throwing; worker routes `"echo"` to the agent and
+  drops the Day-7 stub. Tests TC-1.8.1–1.8.4 pass; TC-1.8.3 (Ollama integration) runs
+  locally with `qwen3:14b` and skips cleanly when Ollama is absent.
+- Decision: `qwen3:14b` used as default model (`mistral` not installed locally). The spec
+  model is advisory; the abstraction makes swapping trivial.
+- Decision: Kafka worker integration tests (TC-1.7.2, TC-1.7.3) use `llm_backend=anthropic`
+  (raises immediately, caught by echo_agent) to avoid a 14B model call in the Kafka
+  plumbing tests. TC-1.8.3 owns the real LLM coverage.
+- Seam noted: worker agent-routing is an `if` today; becomes a dict dispatch in Sprint 2.
+- Next: Day 9 — Aggregator: orchestrator consumes agent.results, records a trace,
+  resolves the incident.
+
 ### Day 7 — FastAPI agent service & Kafka worker
 - Done: Python `agents/` service bootstrapped with FastAPI + aiokafka + Pydantic v2.
   `KafkaWorker` consumes `agent.tasks` (manual commit, `auto_offset_reset=earliest`),
