@@ -2,6 +2,21 @@
 
 ## Sprint 1 — Foundation
 
+### Day 9 — Aggregator & incident resolution
+- Done: `AgentResult` Java record (camelCase wire format matching Python Pydantic aliases);
+  `AggregatorListener` consumes `agent.results`, idempotent on `(incident_id, agent_name)`,
+  records `AgentTrace`, walks `DISPATCHED → AGGREGATING → SYNTHESIZED → RESOLVED`, writes
+  minimal `IncidentReport` (summary from LLM output), publishes to `incidents.synthesized`.
+  Full Sprint-1 pipeline closes: POST alert → Kafka → classify → dispatch → LLM → trace →
+  RESOLVED in ~5-15s end-to-end. Tests TC-1.9.1–1.9.5 pass; 30 Java tests green.
+- Reused: `AgentTrace` and `IncidentReport` entities from `com.sentinel.incident` (existed
+  from Day 2 schema); repositories placed in `com.sentinel.aggregate`. `cost_usd` set to
+  `BigDecimal.ZERO` (computed Sprint 5).
+- Known simplification: `state == DISPATCHED` one-agent guard; Sprint 3 replaces with
+  multi-agent fan-in + deadline. Unparseable `agent.results` logged and skipped; proper
+  DLQ is Sprint 5.
+- Next: Day 10 — end-to-end test, CI integration (Java + Python), README, sprint demo.
+
 ### Day 8 — LLM abstraction & echo agent
 - Done: `LLMClient` Protocol + normalized `LLMResponse`; `OllamaClient` (real, with
   60s explicit timeout, `stream=False`); `AnthropicClient`/`GroqClient` stubbed
