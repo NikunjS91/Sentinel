@@ -1,0 +1,9 @@
+{
+  "source": "demo",
+  "service": "order-api",
+  "alertName": "HighErrorRate",
+  "fingerprint": "demo-001",
+  "severity": "critical",
+  "labels": { "env": "prod", "team": "platform" },
+  "annotations": { "runbook": "https://wiki/runbooks/high-error-rate" }
+}

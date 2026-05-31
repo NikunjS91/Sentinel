@@ -2,6 +2,17 @@
 
 ## Sprint 1 — Foundation
 
+### Day 10 — Sprint 1 close
+- Done: `SprintOneE2ETest` (TC-1.10.1) — full pipeline automated in one test: POST alert →
+  await DISPATCHED → publish canned AgentResult → await RESOLVED → assert trace + report
+  exist. 31 Java tests green. Real CI workflow replacing the Day-1 placeholder: two parallel
+  jobs (`orchestrator` with `mvn verify`, `agents` with ruff/mypy/pytest). `sample-alert.json`
+  added at repo root. README updated to reflect Sprint 1 complete state with accurate
+  getting-started commands. `docs/retrospectives/SPRINT-01.md` written.
+- Sprint 1 status: **COMPLETE** — 31 Java tests, 9 Python tests, full pipeline end-to-end,
+  real CI, documented retrospective.
+- Next: Sprint 2 — demo app emitting realistic telemetry, Log Analyzer + Metrics agents.
+
 ### Day 9 — Aggregator & incident resolution
 - Done: `AgentResult` Java record (camelCase wire format matching Python Pydantic aliases);
   `AggregatorListener` consumes `agent.results`, idempotent on `(incident_id, agent_name)`,

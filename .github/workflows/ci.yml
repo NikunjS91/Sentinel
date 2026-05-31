@@ -6,9 +6,41 @@ on:
   pull_request:
 
 jobs:
-  placeholder:
+  orchestrator:
+    name: orchestrator (Java)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Placeholder
-        run: echo "CI pipeline scaffold — real jobs added in Sprint 1 Day 10"
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+      - name: Build and test
+        working-directory: orchestrator
+        run: mvn -B -Dapi.version=1.44 verify
+
+  agents:
+    name: agents (Python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install
+        working-directory: agents
+        run: pip install -e ".[dev]"
+      - name: Lint
+        working-directory: agents
+        run: ruff check .
+      - name: Type check
+        working-directory: agents
+        run: mypy .
+      - name: Test
+        working-directory: agents
+        run: pytest
+        # TC-1.8.3 (Ollama integration) skips automatically when Ollama is unreachable.

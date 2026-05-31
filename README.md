@@ -4,7 +4,7 @@
 
 When a system breaks at 3 AM, an on-call engineer normally spends 20–40 minutes digging through logs, metrics, dashboards, and old tickets just to *understand* the problem. Sentinel replaces that first half-hour with a team of specialized AI agents that investigate in parallel and hand the engineer a single, clear diagnosis with a recommended fix.
 
-> **Project status:** Sprint 1 in progress (Day 4 of 10). `POST /alerts` is live — alerts are validated, deduplicated, persisted as `RECEIVED` incidents, and published to Kafka. See [What's built](#whats-built) for the current state and [Roadmap](#roadmap) for the full plan.
+> **Project status:** Sprint 1 complete. The full one-agent pipeline is end-to-end: alert → classify → dispatch → LLM → trace → `RESOLVED`. 31 Java tests, 9 Python tests, all green. Real two-language CI on every PR. See [What's built](#whats-built) for the current state and [Roadmap](#roadmap) for the full plan.
 
 ---
 
@@ -139,54 +139,69 @@ flowchart TB
 
 ## What's built
 
-> Sprint 1 · Days 1–4 complete
+> Sprint 1 complete — 31 Java tests · 9 Python tests · full pipeline end-to-end
 
 | Component | Status | Details |
 |---|---|---|
-| Monorepo structure | ✅ Done | All six sprint directories, Docker Compose, CI scaffold |
+| Monorepo structure | ✅ Done | All directories, Docker Compose, real CI |
 | Docker Compose stack | ✅ Done | Postgres 16, Redis 7, Apache Kafka — all healthy |
-| Postgres schema | ✅ Done | Flyway V1 migration: `incidents`, `agent_traces`, `incident_reports`, `audit_log`, `prompt_versions` |
-| JPA entities | ✅ Done | All 5 entities with Hibernate 6 validation; `IncidentRepository` with dedup query |
-| Kafka topics | ✅ Done | All 6 topics provisioned on startup: `incidents.raw`, `agent.tasks`, `agent.results`, `incidents.synthesized`, `audit.events`, `agent.tasks.dlq` |
-| Health endpoint | ✅ Done | `GET /actuator/health` — reports DB + Kafka reachability |
-| Alert ingestion | ✅ Done | `POST /alerts` — validates, deduplicates (SHA-256 idempotency key), persists `RECEIVED` incident, publishes ID to `incidents.raw`, writes audit row |
-| Integration tests | ✅ Done | 9 tests passing via Testcontainers (real Postgres + Kafka) |
-| Incident state machine | 🔜 Day 5 | Explicit state transitions: `RECEIVED → CLASSIFIED → DISPATCHED → SYNTHESIZED` |
-| Agent plane | 🔜 Sprint 2 | FastAPI skeleton, LLM gateway, Log Analyzer + Metrics agents |
+| Postgres schema | ✅ Done | Flyway V1: `incidents`, `agent_traces`, `incident_reports`, `audit_log`, `prompt_versions` |
+| JPA entities + repos | ✅ Done | All entities, Hibernate 6, `IncidentRepository` with dedup query |
+| Kafka topics | ✅ Done | 6 topics provisioned on startup; Kafka health indicator |
+| Alert ingestion | ✅ Done | `POST /alerts` — validates, deduplicates (SHA-256), persists `RECEIVED`, publishes to `incidents.raw` |
+| Incident state machine | ✅ Done | Explicit transitions `RECEIVED→CLASSIFIED→DISPATCHED→AGGREGATING→SYNTHESIZED→RESOLVED`, all audited |
+| Classifier + Dispatcher | ✅ Done | Consumes `incidents.raw`, assigns severity, publishes `AgentTask` to `agent.tasks` |
+| Python agent service | ✅ Done | FastAPI + aiokafka; `KafkaWorker` with DLQ; LLM abstraction (Ollama/Anthropic/Groq) |
+| Echo agent + LLM layer | ✅ Done | `OllamaClient` (real), stub backends; `echo_agent` wraps LLM response in `AgentResult` |
+| Aggregator | ✅ Done | Consumes `agent.results`, records trace, resolves incident, publishes to `incidents.synthesized` |
+| CI | ✅ Done | Java (mvn verify) + Python (ruff/mypy/pytest) jobs run in parallel on every PR |
 | React dashboard | 🔜 Sprint 3 | SSE-powered live incident view with human approval gate |
 
 ---
 
 ## Getting started
 
-> The control plane (`orchestrator/`) is fully functional. The agent plane and UI are built in later sprints.
+> Prerequisites: Java 21, Python 3.11, Docker, [Ollama](https://ollama.ai) with `qwen3:14b` pulled (`ollama pull qwen3:14b`).
 
 ```bash
-# Clone the repository
-git clone https://github.com/NikunjS91/sentinel.git
-cd sentinel
+# Clone
+git clone https://github.com/NikunjS91/Sentinel.git
+cd Sentinel
 
-# Start the infrastructure (Postgres, Redis, Kafka)
+# Start infrastructure (Postgres 16, Redis 7, Kafka)
 docker compose up -d
 
-# Run the control plane (starts on port 8080)
+# Terminal A — control plane (port 8080)
 cd orchestrator && ./mvnw spring-boot:run
 
-# Ingest a test alert
-curl -X POST http://localhost:8080/alerts \
+# Terminal B — agent plane (port 8001)
+cd agents && pip install -e ".[dev]"
+uvicorn app.main:app --port 8001
+
+# Terminal C — fire an alert and watch it resolve
+curl -i -X POST http://localhost:8080/alerts \
   -H 'Content-Type: application/json' \
-  -d '{"source":"demo","service":"order-api","alertName":"HighErrorRate","fingerprint":"abc123","severity":"critical"}'
-# → 201 Created (new incident)
-# → 200 OK (same alert again — deduplicated)
+  -d @sample-alert.json
+# → 201 Created  (new incident, starts the pipeline)
+# → Same curl again → 200 OK (deduplicated — same incident ID returned)
 
-# Check health
-curl http://localhost:8080/actuator/health
+# Wait ~15s for the LLM call, then inspect the outcome
+docker compose exec postgres psql -U sentinel -d sentinel \
+  -c "SELECT id, state, severity FROM incidents;"
+# state should be RESOLVED
 
-# Run the integration tests (requires Docker)
-cd orchestrator && ./mvnw verify
+docker compose exec postgres psql -U sentinel -d sentinel \
+  -c "SELECT agent_name, status, tokens_used FROM agent_traces;"
+
+docker compose exec postgres psql -U sentinel -d sentinel \
+  -c "SELECT summary FROM incident_reports;"
+
+# Run all tests (requires Docker)
+cd orchestrator && ./mvnw verify          # 31 Java tests
+cd ../agents && ruff check . && mypy . && pytest  # 9 Python tests
 ```
 
-> The agent plane (`agents/`) and dashboard (`ui/`) are scaffolded but not yet functional — those land in Sprints 2 and 3.
+> Day-plan docs are in `docs/`. `sample-alert.json` is at the repo root.
 
 ---
 
@@ -196,7 +211,7 @@ The project is built in six two-week sprints, scoped as **Phase 1** of a longer 
 
 ### Phase 1 — Diagnosis Swarm (MVP)
 
-- [x] **Sprint 1** — Foundation: monorepo ✅ · Docker Compose ✅ · Postgres schema ✅ · Kafka topics ✅ · Spring Boot skeleton ✅ · FastAPI + LLM layer 🔜
+- [x] **Sprint 1** — Foundation: full pipeline end-to-end ✅ — alert ingestion, state machine, classifier/dispatcher, Python agent service, LLM abstraction (Ollama), aggregator, 31+9 tests, real CI
 - [ ] **Sprint 2** — Demo app emitting realistic telemetry, synthetic incident generator, Log Analyzer + Metrics agents
 - [ ] **Sprint 3** — Synthesizer agent, parallel dispatch, partial-result handling, live React dashboard with SSE
 - [ ] **Sprint 4** — Topology, History (pgvector), and Runbook agents
