@@ -1,5 +1,25 @@
 # Sentinel — Progress Log
 
+## Sprint 2 — Demo App & First Agents
+
+### Day 11 (S2-D1) — Demo app skeleton
+- Done: `demo-app/` Spring Boot service at :8090; `OrderStore` + `Inventory` in memory;
+  `OrderController` (`GET/POST /orders`) and `InventoryController` (`GET /inventory`) with
+  Micrometer counters (`orders_created_total`, `orders_rejected_total`) and timer
+  (`orders_create_latency`); structured JSON logs via `logstash-logback-encoder` — every
+  log line is a real JSON object with `service`, `level`, `msg`, and `kv()` fields as
+  top-level attributes; `/actuator/prometheus` exposes `orders_created_total`,
+  `orders_rejected_total`, and `http.server.requests` histograms; tests TC-2.1.1–2.1.3
+  pass; CI now runs three parallel jobs (orchestrator, agents, demo-app).
+- Decision: demo-app holds state in memory (no DB) — keeps Day-12's failure modes clean
+  and surface area small.
+- Decision: metric names follow `<entity>_<action>_<unit>` convention so Day-14's Metrics
+  agent PromQL queries are clean.
+- Fixed spec bug: `Inventory.decrement()` in the spec referenced a lambda variable `curr`
+  outside its scope; replaced with a correct lock-free compare-and-set loop.
+- Next: Day 12 — toggleable failure modes (memory leak, downstream timeout, slow query)
+  so agents on Day 13–14 have something to find.
+
 ## Sprint 1 — Foundation
 
 ### Day 10 — Sprint 1 close
