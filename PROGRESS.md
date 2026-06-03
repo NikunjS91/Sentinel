@@ -2,6 +2,22 @@
 
 ## Sprint 2 — Demo App & First Agents
 
+### Day 12 (S2-D2) — Failure modes
+- Done: `FailureMode` enum + admin endpoints (`GET/POST /admin/failure-mode`);
+  `MemoryLeak`, `DownstreamSimulator`, `SlowQuery` components wired into
+  `OrderController.create` (leak per request → slow-query stock read → downstream
+  call → decrement) and `InventoryController.snapshot` (via `SlowQuery`). New
+  metrics: `demo_failure_mode` gauge (ordinal), `demo_leak_objects` gauge,
+  `downstream_call_latency` timer, `downstream_timeouts_total` counter,
+  `db_query_latency` timer. `NONE` reset clears leaked buffers. Tests TC-2.2.1–2.2.5
+  pass; CI still three parallel jobs, 8 demo-app tests green.
+- Design: each mode has a distinct symptom shape — `memory_leak` moves heap only;
+  `downstream_timeout` spikes latency AND emits ERROR logs with
+  `dependency=payment-gateway`; `slow_query` is the silent failure (metrics only,
+  no distinctive logs). Pedagogically distinct for agents.
+- Next: Day 13 — wire Prometheus/Loki/Grafana into Docker Compose so the demo
+  app's telemetry is stored and queryable by agents.
+
 ### Day 11 (S2-D1) — Demo app skeleton
 - Done: `demo-app/` Spring Boot service at :8090; `OrderStore` + `Inventory` in memory;
   `OrderController` (`GET/POST /orders`) and `InventoryController` (`GET /inventory`) with
