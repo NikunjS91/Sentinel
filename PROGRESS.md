@@ -2,6 +2,22 @@
 
 ## Sprint 2 — Demo App & First Agents
 
+### Day 13 (S2-D3) — Observability stack
+- Done: Prometheus, Loki, Grafana, Promtail added to `docker-compose.yml`; demo-app
+  containerized (new `Dockerfile`) and joined the Compose network so Prometheus scrapes
+  it by service DNS (`demo-app:8090`). Config files under `infra/`: Prometheus scrape
+  config (5s interval, histogram percentiles), Loki single-node filesystem store
+  (schema v13, 7-day retention), Promtail Docker SD with JSON pipeline stage promoting
+  `level` + `service` to indexed Loki labels, Grafana datasources provisioned from
+  file (no click-ops). `observability_smoke.sh` passes (TC-2.3.1). Loki config
+  fixed: `ring.kvstore.store: inmemory` (Loki 3.2.0 changed the field path from
+  `ring.kind`). Manual Grafana verification: PromQL `up{job="demo-app"}` == 1,
+  LogQL `{service="demo-app"}` returns structured log lines.
+- Decisions: Promtail over the Loki Docker driver plugin (no install, all in-repo).
+  Demo-app containerized; orchestrator + agents stay on the host through Sprint 5.
+  NOT added to CI — Compose stack excluded until Sprint 5 eval harness.
+- Next: Day 14 — LogQL query tool for the Log Analyzer agent so it can read Loki.
+
 ### Day 12 (S2-D2) — Failure modes
 - Done: `FailureMode` enum + admin endpoints (`GET/POST /admin/failure-mode`);
   `MemoryLeak`, `DownstreamSimulator`, `SlowQuery` components wired into
