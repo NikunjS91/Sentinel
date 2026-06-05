@@ -2,6 +2,22 @@
 
 ## Sprint 2 — Demo App & First Agents
 
+### Day 14 (S2-D4) — LogQL query tool
+- Done: `agents/app/tools/logs.py` — `query_logs` async entry point; `LogQueryResult`
+  Pydantic model (query, line_count, sampled_lines, top_levels, top_messages, time_range,
+  truncated, status, error); `_call_loki` hits Loki `/loki/api/v1/query_range` with
+  nanosecond timestamps; `_summarize` applies even-spaced sampling (`log_sample_limit`),
+  level counting, and 80-char message fingerprinting; `_FIXTURES` / `_fixture` for offline
+  dev (`tool_mode="fixture"`); hard 5s timeout via `settings.log_query_timeout_s`;
+  never raises (TimeoutException → `status="timeout"`, bare Exception → `status="error"`).
+  Settings extended with `loki_url`, `tool_mode`, `log_sample_limit`, `log_query_timeout_s`.
+  Tests TC-2.5.1–TC-2.5.5: 4 pass, TC-2.5.4 skips when Loki absent. `ruff` + `mypy
+  --strict` clean on 21 source files.
+- Design: fixture mode mirrors `LLM_BACKEND` pattern from Day 8 — all offline tests use it,
+  no mocking required. `_summarize` is a pure function so TC-2.5.3 tests it directly without
+  settings or network.
+- Next: Day 15 — PromQL metrics tool (`query_metrics`) for the Metrics agent.
+
 ### Day 13 (S2-D3) — Observability stack
 - Done: Prometheus, Loki, Grafana, Promtail added to `docker-compose.yml`; demo-app
   containerized (new `Dockerfile`) and joined the Compose network so Prometheus scrapes
