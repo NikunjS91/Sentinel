@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -32,6 +34,12 @@ class Settings(BaseSettings):
     # Metrics tool (Day 15)
     prometheus_url: str = "http://localhost:9090"
     metric_query_timeout_s: float = 5.0
+
+    # Postgres (Day 16)
+    database_url: str = "postgresql://sentinel:sentinel@localhost:5432/sentinel"
+
+    # Prompts (Day 16)
+    prompts_dir: Path = Path(__file__).parent / "prompts"
 
 
 settings = Settings()
