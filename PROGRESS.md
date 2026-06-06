@@ -2,6 +2,26 @@
 
 ## Sprint 2 — Demo App & First Agents
 
+### Day 15 (S2-D5) — Tool layer: PromQL query tool
+- Done: `agents/app/tools/metrics.py` — `query_metrics` async function; `MetricResult`,
+  `SeriesSummary`, `SLOViolation` Pydantic models; `_call_prometheus` (Prometheus seconds
+  float, not nanoseconds); `_summarize` collapses each series to min/max/avg/last/p95
+  (NaN-filtered, even p95 on sorted values); `slo_violations` checks latency p95 (500ms),
+  5xx error rate (5%), and heap usage (300MB) against Day-12 failure-mode thresholds;
+  `_FIXTURES` keyed by PromQL substring mirror the three failure-mode symptom shapes.
+  `Settings` extended with `prometheus_url` and `metric_query_timeout_s` (reuses
+  `tool_mode` from Day 14 — one env var governs both tools).
+  Tests TC-2.6.1–TC-2.6.6: 5 pass, TC-2.6.5 skips when Prometheus absent. `ruff` +
+  `mypy --strict` clean on 23 source files.
+- Decisions: summary stats over raw points caps LLM token spend; naive per-series p95 in
+  summarizer vs `histogram_quantile` in PromQL (two different things); `last` is last
+  non-NaN value (not `values[-1]`); SLO thresholds are dev numbers calibrated to Day-12
+  failure modes — Sprint 5 introduces real SLO config.
+- Pattern locked in: every external-service integration test gets a skip-guard.
+  TC-2.6.5 follows Day-8 / Day-14 shape.
+- Next: Day 16 — Log Analyzer agent. Uses `query_logs`, calls the LLM, returns a
+  structured finding.
+
 ### Day 14 (S2-D4) — LogQL query tool
 - Done: `agents/app/tools/logs.py` — `query_logs` async entry point; `LogQueryResult`
   Pydantic model (query, line_count, sampled_lines, top_levels, top_messages, time_range,

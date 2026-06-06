@@ -23,11 +23,15 @@ class Settings(BaseSettings):
     groq_model: str = "llama3-70b-8192"
     incident_token_budget: int = 20_000
 
-    # Tools (Day 14)
+    # Tools (Day 14+)
     loki_url: str = "http://localhost:3100"
-    tool_mode: str = "live"           # "live" | "fixture"
+    tool_mode: str = "live"           # "live" | "fixture" — governs both log and metric tools
     log_sample_limit: int = 50
     log_query_timeout_s: float = 5.0
+
+    # Metrics tool (Day 15)
+    prometheus_url: str = "http://localhost:9090"
+    metric_query_timeout_s: float = 5.0
 
 
 settings = Settings()
