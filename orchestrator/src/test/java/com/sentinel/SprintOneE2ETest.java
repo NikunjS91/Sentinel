@@ -91,15 +91,24 @@ class SprintOneE2ETest {
                 .isEqualTo(IncidentState.DISPATCHED)
         );
 
-        // 3. Simulate the Python worker — publish a canned AgentResult.
-        AgentResult result = new AgentResult(
+        // 3. Simulate the Python worker — publish canned AgentResults for both agents.
+        // Sprint 2: dispatcher sends echo + log_analyzer; aggregator needs both to resolve.
+        AgentResult echoResult = new AgentResult(
             id, "echo",
             Map.of("message", "Acknowledged incident for order-api."),
             42, 100, "ok", null
         );
+        AgentResult logResult = new AgentResult(
+            id, "log_analyzer",
+            Map.of("error_patterns", java.util.List.of(), "confidence", 0.1),
+            10, 50, "ok", "abc123def456"
+        );
         kafka.send(KafkaTopicConfig.AGENT_RESULTS,
                    id.toString(),
-                   json.writeValueAsString(result)).get();
+                   json.writeValueAsString(echoResult)).get();
+        kafka.send(KafkaTopicConfig.AGENT_RESULTS,
+                   id.toString(),
+                   json.writeValueAsString(logResult)).get();
 
         // 4. Wait for the aggregator to close the loop.
         await().atMost(Duration.ofSeconds(15)).untilAsserted(() ->
@@ -107,8 +116,9 @@ class SprintOneE2ETest {
                 .isEqualTo(IncidentState.RESOLVED)
         );
 
-        // 5. Confirm artifacts exist.
+        // 5. Confirm artifacts exist — two traces (echo + log_analyzer), one report.
         assertThat(traces.findByIncidentIdAndAgentName(id, "echo")).isPresent();
+        assertThat(traces.findByIncidentIdAndAgentName(id, "log_analyzer")).isPresent();
         assertThat(reports.count()).isEqualTo(1);
     }
 }

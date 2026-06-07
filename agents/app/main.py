@@ -20,7 +20,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     app.state.prompt_registry = registry
 
     worker = KafkaWorker(settings)
-    worker.prompt_registry = registry  # type: ignore[attr-defined]
+    worker.prompt_registry = registry
     await worker.start()
     app.state.worker = worker
     try:
