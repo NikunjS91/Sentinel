@@ -2,6 +2,25 @@
 
 ## Sprint 2 — Demo App & First Agents
 
+### Day 16 (S2-D6) — Prompt registry
+- Done: `agents/app/prompts/{log_analyzer,metrics_agent,synthesizer}.txt`;
+  `PromptRegistry` loader (SHA-256:12 hashes, immutable, sorted glob load);
+  `upsert_prompt_versions` writes loaded prompts to `prompt_versions` (Day-2
+  table) with `ON CONFLICT (version) DO NOTHING`; lifespan integration in
+  `main.py` — registry loaded before Kafka worker, attached to `app.state` and
+  `worker.prompt_registry`; `/health` now reports `prompts_loaded`. `asyncpg`
+  added to deps; `asyncpg.*` added to mypy `ignore_missing_imports` override.
+  Tests TC-2.7.1–2.7.5: 4 pass, TC-2.7.5 skips when Postgres absent. `ruff` +
+  `mypy --strict` clean on 26 source files. 25 Python tests total.
+- Design: one `{placeholder}` per prompt; registry immutable after load (prompt
+  change = service restart = new hash = new row, old row preserved as history).
+  Postgres shared with orchestrator — same `database_url`, no intermediary API.
+  Synthesizer prompt is a placeholder for Sprint 3; Log Analyzer and Metrics
+  agent prompts are ready for Days 17–18.
+- Next: Day 17 — Log Analyzer agent. Uses `prompt_registry.get("log_analyzer")`
+  + `query_logs` + LLM gateway, returns a structured `AgentResult` with
+  `prompt_version` populated.
+
 ### Day 15 (S2-D5) — Tool layer: PromQL query tool
 - Done: `agents/app/tools/metrics.py` — `query_metrics` async function; `MetricResult`,
   `SeriesSummary`, `SLOViolation` Pydantic models; `_call_prometheus` (Prometheus seconds
