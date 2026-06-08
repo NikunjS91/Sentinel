@@ -63,13 +63,13 @@ public class AggregatorListener {
         // Record the trace always — even if status=error, the attempt is logged.
         traces.save(toTrace(result));
 
-        // Sprint 2: two agents dispatched per incident (echo + log_analyzer).
-        // Resolve only when both have reported. Day 19 replaces this with a
+        // Sprint 2: three agents dispatched per incident (echo + log_analyzer + metrics).
+        // Resolve only when all three have reported. Day 19 replaces this with a
         // proper "expected agent set" mechanism stored per incident.
         // Known coupling: this threshold must match the dispatch list in ClassifierListener.
         long traceCount = traces.countByIncidentId(inc.getId());
 
-        if (inc.getState() == IncidentState.DISPATCHED && traceCount >= 2) {
+        if (inc.getState() == IncidentState.DISPATCHED && traceCount >= 3) {
             stateMachine.transition(inc, IncidentState.AGGREGATING);
             reports.save(buildReport(inc, result));
             stateMachine.transition(inc, IncidentState.SYNTHESIZED);

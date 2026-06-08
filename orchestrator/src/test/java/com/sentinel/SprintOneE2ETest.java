@@ -91,8 +91,8 @@ class SprintOneE2ETest {
                 .isEqualTo(IncidentState.DISPATCHED)
         );
 
-        // 3. Simulate the Python worker — publish canned AgentResults for both agents.
-        // Sprint 2: dispatcher sends echo + log_analyzer; aggregator needs both to resolve.
+        // 3. Simulate the Python worker — publish canned AgentResults for all three agents.
+        // Sprint 2: dispatcher sends echo + log_analyzer + metrics; aggregator needs all three to resolve.
         AgentResult echoResult = new AgentResult(
             id, "echo",
             Map.of("message", "Acknowledged incident for order-api."),
@@ -103,12 +103,20 @@ class SprintOneE2ETest {
             Map.of("error_patterns", java.util.List.of(), "confidence", 0.1),
             10, 50, "ok", "abc123def456"
         );
+        AgentResult metricsResult = new AgentResult(
+            id, "metrics",
+            Map.of("slo_status", "ok", "anomalies", java.util.List.of(), "confidence", 0.1),
+            10, 50, "ok", "def456abc123"
+        );
         kafka.send(KafkaTopicConfig.AGENT_RESULTS,
                    id.toString(),
                    json.writeValueAsString(echoResult)).get();
         kafka.send(KafkaTopicConfig.AGENT_RESULTS,
                    id.toString(),
                    json.writeValueAsString(logResult)).get();
+        kafka.send(KafkaTopicConfig.AGENT_RESULTS,
+                   id.toString(),
+                   json.writeValueAsString(metricsResult)).get();
 
         // 4. Wait for the aggregator to close the loop.
         await().atMost(Duration.ofSeconds(15)).untilAsserted(() ->
@@ -116,9 +124,10 @@ class SprintOneE2ETest {
                 .isEqualTo(IncidentState.RESOLVED)
         );
 
-        // 5. Confirm artifacts exist — two traces (echo + log_analyzer), one report.
+        // 5. Confirm artifacts exist — three traces (echo + log_analyzer + metrics), one report.
         assertThat(traces.findByIncidentIdAndAgentName(id, "echo")).isPresent();
         assertThat(traces.findByIncidentIdAndAgentName(id, "log_analyzer")).isPresent();
+        assertThat(traces.findByIncidentIdAndAgentName(id, "metrics")).isPresent();
         assertThat(reports.count()).isEqualTo(1);
     }
 }

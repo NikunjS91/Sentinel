@@ -56,8 +56,8 @@ public class ClassifierListener {
         stateMachine.transition(inc, IncidentState.CLASSIFIED);
         stateMachine.transition(inc, IncidentState.DISPATCHED);
 
-        // Sprint 2: dispatch echo + log_analyzer together.
+        // Sprint 2: dispatch echo + log_analyzer + metrics together.
         // Day 19 replaces this hardcoded list with a capability-based selector.
-        dispatcher.dispatch(inc, List.of("echo", "log_analyzer"));
+        dispatcher.dispatch(inc, List.of("echo", "log_analyzer", "metrics"));
     }
 }

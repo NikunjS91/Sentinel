@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from .agents.echo import echo_agent
 from .agents.log_analyzer import log_analyzer
+from .agents.metrics_agent import metrics_agent
 from .llm.base import LLMClient
 from .llm.factory import make_llm_client
 from .models import AgentResult, AgentTask
@@ -81,6 +82,10 @@ class KafkaWorker:
             if self.prompt_registry is None:
                 raise RuntimeError("worker has no prompt_registry — lifespan wiring is broken")
             result = await log_analyzer(task, self._llm, self.prompt_registry)
+        elif task.agent_name == "metrics":
+            if self.prompt_registry is None:
+                raise RuntimeError("worker has no prompt_registry — lifespan wiring is broken")
+            result = await metrics_agent(task, self._llm, self.prompt_registry)
         else:
             result = AgentResult(
                 incident_id=task.incident_id,
