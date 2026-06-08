@@ -2,6 +2,27 @@
 
 ## Sprint 2 — Demo App & First Agents
 
+### Day 17 (S2-D7) — Log Analyzer agent
+- Done: `log_analyzer` agent in `agents/app/agents/log_analyzer.py` — calls
+  `query_logs` (Day 14), fetches `log_analyzer` prompt from registry (Day 16),
+  calls LLM (Day 8), returns structured `AgentResult` with `prompt_version`;
+  `LogAnalyzerFinding` typed model in `agents/app/agents/types.py`; defensive
+  JSON parse (`_try_parse`) strips code fences, finds first `{…}`, validates
+  with Pydantic; one retry with nudge on parse failure; `_LLMStats` accumulates
+  tokens + latency across both calls; fallback returns `confidence=0.0`;
+  `KafkaWorker` routes `log_analyzer` tasks via `elif`; prompt substitution uses
+  `.replace("{log_summary}", ...)` (not `str.format()`) to avoid KeyError on
+  the JSON examples in the prompt body.
+  Java: `ClassifierListener` dispatches `["echo", "log_analyzer"]` per incident;
+  `AggregatorListener` resolves only when `traceCount >= 2`; `countByIncidentId`
+  added to `AgentTraceRepository`. Existing tests (TC-1.9.2–1.9.4, TC-1.10.1)
+  updated for two-result flow. New tests TC-2.8.7–2.8.8 (Java) and TC-2.8.1–2.8.5
+  (Python, 5 pass incl. live Ollama). 30 Python tests total.
+- Known coupling (Sprint-2 simplification): aggregator `traceCount >= 2`
+  matches the two-agent dispatch list exactly. Day 19 replaces with a proper
+  "expected agent set" per incident.
+- Next: Day 18 — Metrics agent. Same shape over `query_metrics` + `slo_violations`.
+
 ### Day 16 (S2-D6) — Prompt registry
 - Done: `agents/app/prompts/{log_analyzer,metrics_agent,synthesizer}.txt`;
   `PromptRegistry` loader (SHA-256:12 hashes, immutable, sorted glob load);

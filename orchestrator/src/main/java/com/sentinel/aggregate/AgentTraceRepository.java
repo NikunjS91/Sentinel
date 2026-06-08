@@ -8,4 +8,5 @@ import java.util.UUID;
 
 public interface AgentTraceRepository extends JpaRepository<AgentTrace, UUID> {
     Optional<AgentTrace> findByIncidentIdAndAgentName(UUID incidentId, String agentName);
+    long countByIncidentId(UUID incidentId);
 }

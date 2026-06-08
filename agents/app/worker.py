@@ -7,9 +7,11 @@ from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from pydantic import ValidationError
 
 from .agents.echo import echo_agent
+from .agents.log_analyzer import log_analyzer
 from .llm.base import LLMClient
 from .llm.factory import make_llm_client
 from .models import AgentResult, AgentTask
+from .prompt_registry import PromptRegistry
 from .settings import Settings
 
 log = logging.getLogger(__name__)
@@ -25,6 +27,7 @@ class KafkaWorker:
         self._consumer: AIOKafkaConsumer | None = None
         self._producer: AIOKafkaProducer | None = None
         self._task: asyncio.Task[None] | None = None
+        self.prompt_registry: PromptRegistry | None = None
 
     async def start(self) -> None:
         self._consumer = AIOKafkaConsumer(
@@ -74,6 +77,10 @@ class KafkaWorker:
 
         if task.agent_name == "echo":
             result = await echo_agent(task, self._llm)
+        elif task.agent_name == "log_analyzer":
+            if self.prompt_registry is None:
+                raise RuntimeError("worker has no prompt_registry — lifespan wiring is broken")
+            result = await log_analyzer(task, self._llm, self.prompt_registry)
         else:
             result = AgentResult(
                 incident_id=task.incident_id,

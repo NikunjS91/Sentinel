@@ -102,8 +102,6 @@ class ClassifierDispatchIntegrationTest {
         inc.setUpdatedAt(OffsetDateTime.now());
         incidentRepository.save(inc);
 
-        // Seek to end of agent.tasks before dispatching so we only see the new message.
-        // seekToEnd() is lazy — must use endOffsets() + seek() to position eagerly before dispatch.
         List<TopicPartition> partitions = List.of(
             new TopicPartition("agent.tasks", 0),
             new TopicPartition("agent.tasks", 1),
@@ -127,6 +125,40 @@ class ClassifierDispatchIntegrationTest {
             JsonNode task = objectMapper.readTree(record.value());
             assertThat(task.get("agentName").asText()).isEqualTo("echo");
             assertThat(task.get("incidentId").asText()).isEqualTo(inc.getId().toString());
+        }
+    }
+
+    // TC-2.8.6: classifier dispatches two tasks per incident (echo + log_analyzer)
+    @Test
+    void tc_2_8_6_two_tasks_dispatched_per_incident() throws Exception {
+        List<TopicPartition> partitions = List.of(
+            new TopicPartition("agent.tasks", 0),
+            new TopicPartition("agent.tasks", 1),
+            new TopicPartition("agent.tasks", 2)
+        );
+        try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(consumerProps())) {
+            consumer.assign(partitions);
+            var endOffsets = consumer.endOffsets(partitions);
+            for (var tp : partitions) {
+                consumer.seek(tp, endOffsets.get(tp));
+            }
+
+            // POST an alert — ClassifierListener drives it to DISPATCHED and dispatches both agents.
+            var resp = http.postForEntity("/alerts", CRITICAL_ALERT, Object.class);
+            assertThat(resp.getStatusCode().value()).isEqualTo(201);
+
+            // Await two messages on agent.tasks.
+            await().atMost(10, SECONDS).untilAsserted(() -> {
+                ConsumerRecords<String, String> records = consumer.poll(Duration.ofSeconds(3));
+                // Accumulate across multiple polls
+                var agentNames = new java.util.HashSet<String>();
+                records.forEach(r -> {
+                    try {
+                        agentNames.add(objectMapper.readTree(r.value()).get("agentName").asText());
+                    } catch (Exception ignored) {}
+                });
+                assertThat(agentNames).contains("echo", "log_analyzer");
+            });
         }
     }
 

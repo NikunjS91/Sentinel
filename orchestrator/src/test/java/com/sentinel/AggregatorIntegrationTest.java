@@ -92,10 +92,10 @@ class AggregatorIntegrationTest {
         return incidentRepository.save(inc);
     }
 
-    private String resultJson(UUID incidentId, String status) throws Exception {
+    private String resultJson(UUID incidentId, String agentName, String status) throws Exception {
         Map<String, Object> payload = Map.of(
             "incidentId", incidentId.toString(),
-            "agentName", "echo",
+            "agentName", agentName,
             "output", Map.of("message", "Acknowledged incident for order-api."),
             "tokensUsed", 42,
             "latencyMs", 150,
@@ -104,11 +104,17 @@ class AggregatorIntegrationTest {
         return objectMapper.writeValueAsString(payload);
     }
 
+    // Convenience: send both expected agent results (echo + log_analyzer) to trigger resolution.
+    private void sendBothResults(UUID incidentId, String status) throws Exception {
+        kafkaTemplate.send("agent.results", incidentId.toString(), resultJson(incidentId, "echo", status)).get();
+        kafkaTemplate.send("agent.results", incidentId.toString(), resultJson(incidentId, "log_analyzer", status)).get();
+    }
+
     // TC-1.9.1: result creates a trace row with correct fields
     @Test
     void tc_1_9_1_result_creates_trace() throws Exception {
         Incident inc = buildDispatchedIncident();
-        kafkaTemplate.send("agent.results", inc.getId().toString(), resultJson(inc.getId(), "ok")).get();
+        kafkaTemplate.send("agent.results", inc.getId().toString(), resultJson(inc.getId(), "echo", "ok")).get();
 
         await().atMost(10, SECONDS).untilAsserted(() -> {
             var trace = traceRepository.findByIncidentIdAndAgentName(inc.getId(), "echo");
@@ -119,12 +125,11 @@ class AggregatorIntegrationTest {
         });
     }
 
-    // TC-1.9.2: incident resolves, report written, incidents.synthesized published
+    // TC-1.9.2: incident resolves after both agent results arrive, report written, incidents.synthesized published
     @Test
     void tc_1_9_2_incident_resolves() throws Exception {
         Incident inc = buildDispatchedIncident();
 
-        // Position consumer on incidents.synthesized BEFORE publishing the result.
         List<TopicPartition> synthPartitions = List.of(
             new TopicPartition("incidents.synthesized", 0),
             new TopicPartition("incidents.synthesized", 1),
@@ -137,7 +142,8 @@ class AggregatorIntegrationTest {
                 consumer.seek(tp, endOffsets.get(tp));
             }
 
-            kafkaTemplate.send("agent.results", inc.getId().toString(), resultJson(inc.getId(), "ok")).get();
+            // Sprint 2: need both echo and log_analyzer results to resolve.
+            sendBothResults(inc.getId(), "ok");
 
             await().atMost(15, SECONDS).untilAsserted(() -> {
                 Incident updated = incidentRepository.findById(inc.getId()).orElseThrow();
@@ -155,29 +161,33 @@ class AggregatorIntegrationTest {
     @Test
     void tc_1_9_3_duplicate_result_is_noop() throws Exception {
         Incident inc = buildDispatchedIncident();
-        String payload = resultJson(inc.getId(), "ok");
+        String echoPayload = resultJson(inc.getId(), "echo", "ok");
 
-        kafkaTemplate.send("agent.results", inc.getId().toString(), payload).get();
+        // Send both to reach RESOLVED
+        sendBothResults(inc.getId(), "ok");
 
         await().atMost(15, SECONDS).untilAsserted(() ->
             assertThat(incidentRepository.findById(inc.getId()).orElseThrow().getState())
                 .isEqualTo(IncidentState.RESOLVED)
         );
 
-        // Send the same result again — should be a no-op
-        kafkaTemplate.send("agent.results", inc.getId().toString(), payload).get();
+        // Send the echo result again — should be a no-op (idempotency on (incident, agent))
+        kafkaTemplate.send("agent.results", inc.getId().toString(), echoPayload).get();
         Thread.sleep(3000);
 
-        assertThat(traceRepository.findAll()).hasSize(1);
+        assertThat(traceRepository.findAll()).hasSize(2);
         assertThat(incidentRepository.findById(inc.getId()).orElseThrow().getState())
             .isEqualTo(IncidentState.RESOLVED);
     }
 
-    // TC-1.9.4: error-status result still records trace and resolves the incident
+    // TC-1.9.4: error-status result still records trace; incident resolves once both results arrive
     @Test
     void tc_1_9_4_error_status_still_records_and_resolves() throws Exception {
         Incident inc = buildDispatchedIncident();
-        kafkaTemplate.send("agent.results", inc.getId().toString(), resultJson(inc.getId(), "error")).get();
+
+        // Send echo with error status, then log_analyzer with ok — both needed to resolve
+        kafkaTemplate.send("agent.results", inc.getId().toString(), resultJson(inc.getId(), "echo", "error")).get();
+        kafkaTemplate.send("agent.results", inc.getId().toString(), resultJson(inc.getId(), "log_analyzer", "ok")).get();
 
         await().atMost(10, SECONDS).untilAsserted(() -> {
             var trace = traceRepository.findByIncidentIdAndAgentName(inc.getId(), "echo");
@@ -192,11 +202,42 @@ class AggregatorIntegrationTest {
     @Test
     void tc_1_9_5_unknown_incident_is_dropped() throws Exception {
         UUID unknownId = UUID.randomUUID();
-        kafkaTemplate.send("agent.results", unknownId.toString(), resultJson(unknownId, "ok")).get();
+        kafkaTemplate.send("agent.results", unknownId.toString(), resultJson(unknownId, "echo", "ok")).get();
 
         Thread.sleep(3000);
 
         assertThat(traceRepository.count()).isZero();
         assertThat(reportRepository.count()).isZero();
+    }
+
+    // TC-2.8.7: incident stays DISPATCHED after only one result arrives
+    @Test
+    void tc_2_8_7_incident_stays_dispatched_after_one_result() throws Exception {
+        Incident inc = buildDispatchedIncident();
+        kafkaTemplate.send("agent.results", inc.getId().toString(), resultJson(inc.getId(), "echo", "ok")).get();
+
+        // Wait for trace to be recorded
+        await().atMost(10, SECONDS).untilAsserted(() ->
+            assertThat(traceRepository.findByIncidentIdAndAgentName(inc.getId(), "echo")).isPresent()
+        );
+
+        // Incident must NOT be resolved yet — only one of two expected agents reported
+        assertThat(incidentRepository.findById(inc.getId()).orElseThrow().getState())
+            .isEqualTo(IncidentState.DISPATCHED);
+    }
+
+    // TC-2.8.8: incident resolves after both results arrive, two traces recorded
+    @Test
+    void tc_2_8_8_incident_resolves_after_both_results() throws Exception {
+        Incident inc = buildDispatchedIncident();
+
+        sendBothResults(inc.getId(), "ok");
+
+        await().atMost(15, SECONDS).untilAsserted(() -> {
+            assertThat(incidentRepository.findById(inc.getId()).orElseThrow().getState())
+                .isEqualTo(IncidentState.RESOLVED);
+            assertThat(traceRepository.countByIncidentId(inc.getId())).isEqualTo(2);
+            assertThat(reportRepository.count()).isEqualTo(1);
+        });
     }
 }
