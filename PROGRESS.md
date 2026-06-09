@@ -2,6 +2,28 @@
 
 ## Sprint 2 — Demo App & First Agents
 
+### Day 18 (S2-D8) — Metrics agent
+- Done: `agents/app/agents/_parse.py` — shared `call_with_retry`/`try_parse`
+  helpers generic over Pydantic model (`T = TypeVar("T", bound=BaseModel)`);
+  `LLMStats` accumulates tokens + latency across both LLM calls; `log_analyzer.py`
+  refactored to use shared helpers (Day-17 tests TC-2.8.1–2.8.4 pass unchanged —
+  proof of behavior-preserving extraction); `MetricsAgentFinding` typed model added
+  to `agents/app/agents/types.py`; `metrics_agent.py` composes three PromQL queries
+  (p95 latency, error rate, heap) + `slo_violations` into a bounded `_MetricsSummary`,
+  substitutes into prompt via `.replace()` (NOT `.format()` — Day-17 lesson),
+  returns structured `AgentResult` with `prompt_version`; worker has third `elif`
+  branch for `"metrics"` (deliberate ahead of Day-19 dict-dispatch refactor); Java
+  dispatcher publishes 3 tasks per incident (`echo`, `log_analyzer`, `metrics`);
+  aggregator resolves at `traceCount >= 3`.
+  Tests: TC-2.9.1 (4 subtests), TC-2.9.2 (2 subtests) in `test_parse_helper.py`;
+  TC-2.9.3–TC-2.9.6 in `test_metrics_agent.py`; TC-2.9.7 in
+  `ClassifierDispatchIntegrationTest.java`. All existing Day-17 tests updated for
+  three-agent flow (`sendThreeResults`, trace count 3).
+- Sprint-2 coupling note: dispatch list and aggregator threshold remain hardcoded
+  together (now at 3). Day 19 replaces with an expected-agent-set per incident.
+- Next: Day 19 — multi-agent dispatch refactor: dict-based worker routing,
+  expected-agent-set per incident, remove hardcoded threshold coupling.
+
 ### Day 17 (S2-D7) — Log Analyzer agent
 - Done: `log_analyzer` agent in `agents/app/agents/log_analyzer.py` — calls
   `query_logs` (Day 14), fetches `log_analyzer` prompt from registry (Day 16),

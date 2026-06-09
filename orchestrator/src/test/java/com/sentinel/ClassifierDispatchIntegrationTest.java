@@ -128,9 +128,9 @@ class ClassifierDispatchIntegrationTest {
         }
     }
 
-    // TC-2.8.6: classifier dispatches two tasks per incident (echo + log_analyzer)
+    // TC-2.8.6: classifier dispatches three tasks per incident (echo + log_analyzer + metrics)
     @Test
-    void tc_2_8_6_two_tasks_dispatched_per_incident() throws Exception {
+    void tc_2_8_6_three_tasks_dispatched_per_incident() throws Exception {
         List<TopicPartition> partitions = List.of(
             new TopicPartition("agent.tasks", 0),
             new TopicPartition("agent.tasks", 1),
@@ -143,11 +143,11 @@ class ClassifierDispatchIntegrationTest {
                 consumer.seek(tp, endOffsets.get(tp));
             }
 
-            // POST an alert — ClassifierListener drives it to DISPATCHED and dispatches both agents.
+            // POST an alert — ClassifierListener drives it to DISPATCHED and dispatches all three agents.
             var resp = http.postForEntity("/alerts", CRITICAL_ALERT, Object.class);
             assertThat(resp.getStatusCode().value()).isEqualTo(201);
 
-            // Await two messages on agent.tasks.
+            // Await three messages on agent.tasks.
             await().atMost(10, SECONDS).untilAsserted(() -> {
                 ConsumerRecords<String, String> records = consumer.poll(Duration.ofSeconds(3));
                 // Accumulate across multiple polls
@@ -157,8 +157,46 @@ class ClassifierDispatchIntegrationTest {
                         agentNames.add(objectMapper.readTree(r.value()).get("agentName").asText());
                     } catch (Exception ignored) {}
                 });
-                assertThat(agentNames).contains("echo", "log_analyzer");
+                assertThat(agentNames).contains("echo", "log_analyzer", "metrics");
             });
+        }
+    }
+
+    // TC-2.9.7: three tasks dispatched per incident, all keyed by incident id
+    @Test
+    void tc_2_9_7_three_tasks_dispatched_keyed_by_incident_id() throws Exception {
+        List<TopicPartition> partitions = List.of(
+            new TopicPartition("agent.tasks", 0),
+            new TopicPartition("agent.tasks", 1),
+            new TopicPartition("agent.tasks", 2)
+        );
+        try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(consumerProps())) {
+            consumer.assign(partitions);
+            var endOffsets = consumer.endOffsets(partitions);
+            for (var tp : partitions) {
+                consumer.seek(tp, endOffsets.get(tp));
+            }
+
+            ResponseEntity<IncidentDto> resp = http.postForEntity("/alerts", CRITICAL_ALERT, IncidentDto.class);
+            assertThat(resp.getStatusCode().value()).isEqualTo(201);
+            UUID incidentId = resp.getBody().id();
+
+            var agentNames = new java.util.HashSet<String>();
+            var recordedKeys = new java.util.HashSet<String>();
+
+            await().atMost(10, SECONDS).untilAsserted(() -> {
+                ConsumerRecords<String, String> records = consumer.poll(Duration.ofSeconds(3));
+                records.forEach(r -> {
+                    try {
+                        agentNames.add(objectMapper.readTree(r.value()).get("agentName").asText());
+                        recordedKeys.add(r.key());
+                    } catch (Exception ignored) {}
+                });
+                assertThat(agentNames).containsExactlyInAnyOrder("echo", "log_analyzer", "metrics");
+            });
+
+            // All three tasks must be keyed by the same incident id
+            assertThat(recordedKeys).containsExactly(incidentId.toString());
         }
     }
 

@@ -104,10 +104,11 @@ class AggregatorIntegrationTest {
         return objectMapper.writeValueAsString(payload);
     }
 
-    // Convenience: send both expected agent results (echo + log_analyzer) to trigger resolution.
-    private void sendBothResults(UUID incidentId, String status) throws Exception {
+    // Convenience: send all three expected agent results (echo + log_analyzer + metrics) to trigger resolution.
+    private void sendThreeResults(UUID incidentId, String status) throws Exception {
         kafkaTemplate.send("agent.results", incidentId.toString(), resultJson(incidentId, "echo", status)).get();
         kafkaTemplate.send("agent.results", incidentId.toString(), resultJson(incidentId, "log_analyzer", status)).get();
+        kafkaTemplate.send("agent.results", incidentId.toString(), resultJson(incidentId, "metrics", status)).get();
     }
 
     // TC-1.9.1: result creates a trace row with correct fields
@@ -143,7 +144,7 @@ class AggregatorIntegrationTest {
             }
 
             // Sprint 2: need both echo and log_analyzer results to resolve.
-            sendBothResults(inc.getId(), "ok");
+            sendThreeResults(inc.getId(), "ok");
 
             await().atMost(15, SECONDS).untilAsserted(() -> {
                 Incident updated = incidentRepository.findById(inc.getId()).orElseThrow();
@@ -164,7 +165,7 @@ class AggregatorIntegrationTest {
         String echoPayload = resultJson(inc.getId(), "echo", "ok");
 
         // Send both to reach RESOLVED
-        sendBothResults(inc.getId(), "ok");
+        sendThreeResults(inc.getId(), "ok");
 
         await().atMost(15, SECONDS).untilAsserted(() ->
             assertThat(incidentRepository.findById(inc.getId()).orElseThrow().getState())
@@ -175,19 +176,20 @@ class AggregatorIntegrationTest {
         kafkaTemplate.send("agent.results", inc.getId().toString(), echoPayload).get();
         Thread.sleep(3000);
 
-        assertThat(traceRepository.findAll()).hasSize(2);
+        assertThat(traceRepository.findAll()).hasSize(3);
         assertThat(incidentRepository.findById(inc.getId()).orElseThrow().getState())
             .isEqualTo(IncidentState.RESOLVED);
     }
 
-    // TC-1.9.4: error-status result still records trace; incident resolves once both results arrive
+    // TC-1.9.4: error-status result still records trace; incident resolves once all three results arrive
     @Test
     void tc_1_9_4_error_status_still_records_and_resolves() throws Exception {
         Incident inc = buildDispatchedIncident();
 
-        // Send echo with error status, then log_analyzer with ok — both needed to resolve
+        // Send echo with error status, then log_analyzer + metrics with ok — all three needed to resolve
         kafkaTemplate.send("agent.results", inc.getId().toString(), resultJson(inc.getId(), "echo", "error")).get();
         kafkaTemplate.send("agent.results", inc.getId().toString(), resultJson(inc.getId(), "log_analyzer", "ok")).get();
+        kafkaTemplate.send("agent.results", inc.getId().toString(), resultJson(inc.getId(), "metrics", "ok")).get();
 
         await().atMost(10, SECONDS).untilAsserted(() -> {
             var trace = traceRepository.findByIncidentIdAndAgentName(inc.getId(), "echo");
@@ -221,22 +223,22 @@ class AggregatorIntegrationTest {
             assertThat(traceRepository.findByIncidentIdAndAgentName(inc.getId(), "echo")).isPresent()
         );
 
-        // Incident must NOT be resolved yet — only one of two expected agents reported
+        // Incident must NOT be resolved yet — only one of three expected agents reported
         assertThat(incidentRepository.findById(inc.getId()).orElseThrow().getState())
             .isEqualTo(IncidentState.DISPATCHED);
     }
 
-    // TC-2.8.8: incident resolves after both results arrive, two traces recorded
+    // TC-2.8.8: incident resolves after all three results arrive, three traces recorded
     @Test
-    void tc_2_8_8_incident_resolves_after_both_results() throws Exception {
+    void tc_2_8_8_incident_resolves_after_all_three_results() throws Exception {
         Incident inc = buildDispatchedIncident();
 
-        sendBothResults(inc.getId(), "ok");
+        sendThreeResults(inc.getId(), "ok");
 
         await().atMost(15, SECONDS).untilAsserted(() -> {
             assertThat(incidentRepository.findById(inc.getId()).orElseThrow().getState())
                 .isEqualTo(IncidentState.RESOLVED);
-            assertThat(traceRepository.countByIncidentId(inc.getId())).isEqualTo(2);
+            assertThat(traceRepository.countByIncidentId(inc.getId())).isEqualTo(3);
             assertThat(reportRepository.count()).isEqualTo(1);
         });
     }
