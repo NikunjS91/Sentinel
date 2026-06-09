@@ -1,8 +1,8 @@
-from ..llm.base import LLMClient
 from ..models import AgentResult, AgentTask
+from ._context import AgentContext
 
 
-async def echo_agent(task: AgentTask, llm: LLMClient) -> AgentResult:
+async def echo_agent(task: AgentTask, ctx: AgentContext) -> AgentResult:
     """Sprint 1 agent: acknowledge the incident in one sentence via the LLM.
     Proves the LLM path end to end. Real diagnostic agents arrive in Sprint 2."""
     prompt = (
@@ -11,7 +11,7 @@ async def echo_agent(task: AgentTask, llm: LLMClient) -> AgentResult:
         "Do not speculate about causes."
     )
     try:
-        resp = await llm.complete(prompt)
+        resp = await ctx.llm.complete(prompt)
         return AgentResult(
             incident_id=task.incident_id,
             agent_name=task.agent_name,

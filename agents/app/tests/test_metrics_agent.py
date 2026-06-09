@@ -9,6 +9,7 @@ from uuid import uuid4
 import httpx
 import pytest
 
+from app.agents._context import AgentContext
 from app.agents.metrics_agent import metrics_agent
 from app.llm.base import LLMClient, LLMResponse
 from app.models import AgentTask
@@ -88,7 +89,7 @@ async def test_tc_2_9_3_happy_path(monkeypatch: pytest.MonkeyPatch) -> None:
     registry = _real_registry()
     task = _make_task()
 
-    result = await metrics_agent(task, llm, registry)
+    result = await metrics_agent(task, AgentContext(llm=llm, prompts=registry))
 
     assert result.status == "ok"
     assert result.agent_name == "metrics"
@@ -116,7 +117,7 @@ async def test_tc_2_9_4_slo_violations_in_prompt(monkeypatch: pytest.MonkeyPatch
     # Use a service name that the metrics fixture maps to slow_query (latency violations)
     task = _make_task(service="demo-app")
 
-    await metrics_agent(task, llm, registry)
+    await metrics_agent(task, AgentContext(llm=llm, prompts=registry))
 
     # The rendered prompt captured in llm.last_prompt must contain "slo_violations"
     assert "slo_violations" in llm.last_prompt
@@ -134,7 +135,7 @@ async def test_tc_2_9_5_persistent_failure_yields_fallback(monkeypatch: pytest.M
     registry = _real_registry()
     task = _make_task()
 
-    result = await metrics_agent(task, llm, registry)
+    result = await metrics_agent(task, AgentContext(llm=llm, prompts=registry))
 
     assert result.status == "ok"
     output = result.output
@@ -160,7 +161,7 @@ async def test_tc_2_9_6_live_slow_query(monkeypatch: pytest.MonkeyPatch) -> None
     registry = _real_registry()
     task = _make_task(service="demo-app")
 
-    result = await metrics_agent(task, llm, registry)
+    result = await metrics_agent(task, AgentContext(llm=llm, prompts=registry))
 
     assert result.status == "ok"
     output = result.output

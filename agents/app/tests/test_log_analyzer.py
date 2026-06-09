@@ -8,6 +8,7 @@ from uuid import uuid4
 import httpx
 import pytest
 
+from app.agents._context import AgentContext
 from app.agents.log_analyzer import log_analyzer
 from app.llm.base import LLMClient, LLMResponse
 from app.models import AgentTask
@@ -76,7 +77,7 @@ async def test_tc_2_8_1_happy_path(monkeypatch: pytest.MonkeyPatch) -> None:
     registry = _real_registry()
     task = _make_task()
 
-    result = await log_analyzer(task, llm, registry)
+    result = await log_analyzer(task, AgentContext(llm=llm, prompts=registry))
 
     assert result.status == "ok"
     assert result.agent_name == "log_analyzer"
@@ -100,7 +101,7 @@ async def test_tc_2_8_2_retry_on_malformed(monkeypatch: pytest.MonkeyPatch) -> N
     registry = _real_registry()
     task = _make_task()
 
-    result = await log_analyzer(task, llm, registry)
+    result = await log_analyzer(task, AgentContext(llm=llm, prompts=registry))
 
     assert result.status == "ok"
     assert result.output["most_likely_symptom"] == "payment-gateway unreachable"
@@ -121,7 +122,7 @@ async def test_tc_2_8_3_persistent_parse_failure(monkeypatch: pytest.MonkeyPatch
     registry = _real_registry()
     task = _make_task()
 
-    result = await log_analyzer(task, llm, registry)
+    result = await log_analyzer(task, AgentContext(llm=llm, prompts=registry))
 
     assert result.status == "ok"
     assert result.output["confidence"] == 0.0
@@ -142,7 +143,7 @@ async def test_tc_2_8_4_code_fences_stripped(monkeypatch: pytest.MonkeyPatch) ->
     registry = _real_registry()
     task = _make_task()
 
-    result = await log_analyzer(task, llm, registry)
+    result = await log_analyzer(task, AgentContext(llm=llm, prompts=registry))
 
     assert result.status == "ok"
     assert result.output["confidence"] == pytest.approx(0.85)
@@ -163,7 +164,7 @@ async def test_tc_2_8_5_live_ollama(monkeypatch: pytest.MonkeyPatch) -> None:
     registry = _real_registry()
     task = _make_task(service="demo-app")
 
-    result = await log_analyzer(task, llm, registry)
+    result = await log_analyzer(task, AgentContext(llm=llm, prompts=registry))
 
     assert result.status == "ok"
     assert result.prompt_version is not None
