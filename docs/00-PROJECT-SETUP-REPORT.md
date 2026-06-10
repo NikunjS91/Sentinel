@@ -8,7 +8,7 @@
 | **Author** | Nikunj Shetye |
 | **Document type** | Project setup & execution report |
 | **Scope** | Phase 1 (MVP) — 6 sprints, 12 weeks, ~60 working days |
-| **Status** | Planning complete — ready to execute Sprint 1 |
+| **Status** | Sprint 1 ✅ · Sprint 2 ✅ · Sprint 3 🔜 |
 
 ---
 

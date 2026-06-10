@@ -87,6 +87,7 @@ class AggregatorIntegrationTest {
         inc.setSeverity("p1");
         inc.setState(IncidentState.DISPATCHED);
         inc.setRawAlert("{}");
+        inc.setExpectedAgents(List.of("echo", "log_analyzer", "metrics"));
         inc.setCreatedAt(OffsetDateTime.now());
         inc.setUpdatedAt(OffsetDateTime.now());
         return incidentRepository.save(inc);
@@ -264,9 +265,10 @@ class AggregatorIntegrationTest {
     // TC-2.10.3: empty expected_agents does not resolve on first result
     @Test
     void tc_2_10_3_empty_expected_agents_does_not_resolve() throws Exception {
-        // Build incident with default empty expected_agents
+        // Build incident and explicitly clear expected_agents to test the safety guard.
         Incident inc = buildDispatchedIncident();
-        // expected_agents defaults to [] — no need to set
+        inc.setExpectedAgents(List.of());
+        incidentRepository.save(inc);
 
         kafkaTemplate.send("agent.results", inc.getId().toString(), resultJson(inc.getId(), "echo", "ok")).get();
 

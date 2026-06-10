@@ -2,6 +2,32 @@
 
 ## Sprint 2 — Demo App & First Agents
 
+### Day 20 (S2-D10) — Sprint 2 close
+- Done: `SprintTwoE2ETest.java` (TC-2.11.1) — three-agent flow end-to-end: alert POST,
+  await DISPATCHED + expected_agents = ["echo","log_analyzer","metrics"], send three
+  AgentResults in non-canonical order (metrics/echo/log_analyzer), await RESOLVED,
+  assert three traces + one report.
+  `agents/app/tests/test_swarm_asymmetry.py` (TC-2.11.2) — architectural thesis codified:
+  Log Analyzer confidence 0.15 vs Metrics agent confidence 0.88 on slow_query; assertion
+  `metric_confidence - log_confidence > 0.5` (observed delta 0.73, threshold conservative).
+  `AggregatorIntegrationTest` regression fixed: `buildDispatchedIncident()` now sets
+  `expectedAgents = ["echo","log_analyzer","metrics"]`; TC-2.10.3 explicitly clears to []
+  to test the safety guard — all 9 aggregator tests pass.
+  Demo artifact: `docs/demos/SPRINT-2-SWARM-ASYMMETRY.md` — full slow_query demo script
+  with SQL query showing divergent findings.
+  README updated: Sprint 2 status, agent table with ✅/🔜, What's built table, test counts
+  (~40 Java + 37 Python + 8 demo-app), Getting Started for 8-service stack.
+  Docs updated: `00-PROJECT-SETUP-REPORT.md` sprint status, `01-OVERVIEW-AND-ARCHITECTURE.md`
+  agent table, `04-SPRINT-2-DEMO-APP-AND-AGENTS.md` completion banner.
+  `docs/retrospectives/SPRINT-02.md` written — honest account of what went well, what was
+  hard (format/replace, Kafka divergence, Loki schema, aggregator regression), decisions,
+  known simplifications, riskiest unknown (Synthesizer prompt).
+- Sprint 2 final score: 3 specialist agents in parallel, demo app + full observability
+  stack, tool layer, prompt registry, dispatch refactor, swarm asymmetry codified.
+  Test counts: ~40 Java + 37 Python + 8 demo-app, all green.
+- Sprint 3 starts: Synthesizer + deadline + PARTIAL handling + live UI. The placeholder
+  Synthesizer prompt is already in the registry from Day 16.
+
 ### Day 19 (S2-D9) — Multi-agent dispatch refactor
 - Done: `AgentContext` frozen dataclass in `agents/app/agents/_context.py`; uniform
   agent signature `(task, ctx: AgentContext)` across echo, log_analyzer, metrics_agent;
