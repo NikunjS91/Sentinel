@@ -2,6 +2,9 @@
 
 [← Back to index](./00-PROJECT-SETUP-REPORT.md)
 
+> **Sprint 2 status: ✅ DONE** (Days 11–20 complete)
+> Three specialist agents (Log Analyzer, Metrics, Echo) run in parallel. Swarm asymmetry on slow_query codified as TC-2.11.2. ~40 Java + 37 Python + 8 demo-app tests, all green. See `docs/retrospectives/SPRINT-02.md` and `docs/demos/SPRINT-2-SWARM-ASYMMETRY.md`.
+
 ---
 
 ## Sprint goal

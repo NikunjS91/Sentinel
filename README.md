@@ -4,7 +4,7 @@
 
 When a system breaks at 3 AM, an on-call engineer normally spends 20–40 minutes digging through logs, metrics, dashboards, and old tickets just to *understand* the problem. Sentinel replaces that first half-hour with a team of specialized AI agents that investigate in parallel and hand the engineer a single, clear diagnosis with a recommended fix.
 
-> **Project status:** Sprint 1 complete. The full one-agent pipeline is end-to-end: alert → classify → dispatch → LLM → trace → `RESOLVED`. 31 Java tests, 9 Python tests, all green. Real two-language CI on every PR. See [What's built](#whats-built) for the current state and [Roadmap](#roadmap) for the full plan.
+> **Project status:** Sprint 2 complete. Three specialist agents (Log Analyzer, Metrics, Echo) run in parallel on every incident. Swarm asymmetry demonstrated on `slow_query`: Metrics agent 0.88 confidence, Log Analyzer 0.15 — same incident, different specialists, different answers. ~40 Java tests, 37 Python tests, 8 demo-app tests, all green. Real two-language CI on every PR. See [What's built](#whats-built) for the current state and [Roadmap](#roadmap) for the full plan.
 
 ---
 
@@ -20,14 +20,14 @@ Sentinel uses a **swarm of specialist agents**, each narrow and good at one job,
 
 Five investigators each produce a fragment of the picture; a sixth agent combines them into one answer:
 
-| Agent | Job | Example finding |
-|---|---|---|
-| **Log Analyzer** | Scans error logs around the incident window | "200 DB timeout errors in the last 5 minutes" |
-| **Metrics** | Reads metrics and checks SLO violations | "Memory climbing fast — looks like a leak" |
-| **Topology** | Maps service dependencies and recent deploys | "A deploy hit this service 10 minutes ago" |
-| **History** | Searches past incidents for similar patterns | "We saw this in March — bad DB query" |
-| **Runbook** | Matches the incident to documented playbooks | "Runbook exists — step 1: roll back" |
-| **Synthesizer** | Combines all findings into one report | Final diagnosis + recommended fix + confidence |
+| Agent | Job | Example finding | Status |
+|---|---|---|---|
+| **Log Analyzer** | Scans error logs around the incident window | "200 DB timeout errors in the last 5 minutes" | ✅ Sprint 2 |
+| **Metrics** | Reads metrics and checks SLO violations | "p95 latency 0.82s exceeds SLO — DB query latency" | ✅ Sprint 2 |
+| **Synthesizer** | Combines all findings into one report | Final diagnosis + recommended fix + confidence | 🔜 Sprint 3 |
+| **Topology** | Maps service dependencies and recent deploys | "A deploy hit this service 10 minutes ago" | 🔜 Sprint 4 |
+| **History** | Searches past incidents for similar patterns | "We saw this in March — bad DB query" | 🔜 Sprint 4 |
+| **Runbook** | Matches the incident to documented playbooks | "Runbook exists — step 1: roll back" | 🔜 Sprint 4 |
 
 The result, delivered in seconds: *what broke, why, whether it's been seen before, and what to do — with a confidence score.* A human reviews it on a live dashboard and approves or edits.
 
@@ -139,66 +139,83 @@ flowchart TB
 
 ## What's built
 
-> Sprint 1 complete — 31 Java tests · 9 Python tests · full pipeline end-to-end
+> Sprint 2 complete — ~40 Java tests · 37 Python tests · 8 demo-app tests · full three-agent pipeline end-to-end
 
 | Component | Status | Details |
 |---|---|---|
-| Monorepo structure | ✅ Done | All directories, Docker Compose, real CI |
-| Docker Compose stack | ✅ Done | Postgres 16, Redis 7, Apache Kafka — all healthy |
-| Postgres schema | ✅ Done | Flyway V1: `incidents`, `agent_traces`, `incident_reports`, `audit_log`, `prompt_versions` |
-| JPA entities + repos | ✅ Done | All entities, Hibernate 6, `IncidentRepository` with dedup query |
-| Kafka topics | ✅ Done | 6 topics provisioned on startup; Kafka health indicator |
-| Alert ingestion | ✅ Done | `POST /alerts` — validates, deduplicates (SHA-256), persists `RECEIVED`, publishes to `incidents.raw` |
-| Incident state machine | ✅ Done | Explicit transitions `RECEIVED→CLASSIFIED→DISPATCHED→AGGREGATING→SYNTHESIZED→RESOLVED`, all audited |
-| Classifier + Dispatcher | ✅ Done | Consumes `incidents.raw`, assigns severity, publishes `AgentTask` to `agent.tasks` |
-| Python agent service | ✅ Done | FastAPI + aiokafka; `KafkaWorker` with DLQ; LLM abstraction (Ollama/Anthropic/Groq) |
-| Echo agent + LLM layer | ✅ Done | `OllamaClient` (real), stub backends; `echo_agent` wraps LLM response in `AgentResult` |
-| Aggregator | ✅ Done | Consumes `agent.results`, records trace, resolves incident, publishes to `incidents.synthesized` |
-| CI | ✅ Done | Java (mvn verify) + Python (ruff/mypy/pytest) jobs run in parallel on every PR |
+| Monorepo structure | ✅ Sprint 1 | All directories, Docker Compose, real CI |
+| Docker Compose stack | ✅ Sprint 1 | Postgres 16, Redis 7, Apache Kafka — all healthy |
+| Postgres schema | ✅ Sprint 1 | Flyway V1+V2: incidents, agent_traces, incident_reports, audit_log, prompt_versions, expected_agents |
+| JPA entities + repos | ✅ Sprint 1 | All entities, Hibernate 6, `IncidentRepository` with dedup query |
+| Kafka topics | ✅ Sprint 1 | 6 topics provisioned on startup; Kafka health indicator |
+| Alert ingestion | ✅ Sprint 1 | `POST /alerts` — validates, deduplicates (SHA-256), persists `RECEIVED`, publishes to `incidents.raw` |
+| Incident state machine | ✅ Sprint 1 | Explicit transitions `RECEIVED→CLASSIFIED→DISPATCHED→AGGREGATING→SYNTHESIZED→RESOLVED`, all audited |
+| Classifier + Dispatcher | ✅ Sprint 1 | Consumes `incidents.raw`, assigns severity, publishes `AgentTask` to `agent.tasks` |
+| Python agent service | ✅ Sprint 1 | FastAPI + aiokafka; `KafkaWorker` with DLQ; LLM abstraction (Ollama/Anthropic/Groq) |
+| Echo agent + LLM layer | ✅ Sprint 1 | `OllamaClient` (real), stub backends; `echo_agent` wraps LLM response in `AgentResult` |
+| Aggregator | ✅ Sprint 1 | Consumes `agent.results`, records trace, resolves incident, publishes to `incidents.synthesized` |
+| CI | ✅ Sprint 1 | Java (mvn verify) + Python (ruff/mypy/pytest) + demo-app jobs run in parallel on every PR |
+| Demo app | ✅ Sprint 2 | Spring Boot breakable service — 3 endpoints, 4 failure modes, Prometheus + structured-JSON logs |
+| Observability stack | ✅ Sprint 2 | Prometheus, Loki, Promtail, Grafana — containerized, datasource-provisioned, queryable |
+| Tool layer | ✅ Sprint 2 | `query_logs` (Loki/LogQL) + `query_metrics` + `slo_violations` (Prometheus/PromQL) — async, fixture-mode |
+| Prompt registry | ✅ Sprint 2 | Versioned, immutable, Postgres-synced; `.txt` files loaded at startup |
+| Log Analyzer agent | ✅ Sprint 2 | LLM agent scanning logs around incident; defensive JSON parsing with retry |
+| Metrics agent | ✅ Sprint 2 | LLM agent reading 3 PromQL queries + SLO violations; calibrated confidence |
+| Three-agent dispatch | ✅ Sprint 2 | Dict-based registry; `expected_agents` per incident; aggregator resolves dynamically |
+| Swarm asymmetry | ✅ Sprint 2 | TC-2.11.2 codifies: Metrics 0.88 confidence vs Log Analyzer 0.15 on slow_query |
 | React dashboard | 🔜 Sprint 3 | SSE-powered live incident view with human approval gate |
 
 ---
 
 ## Getting started
 
-> Prerequisites: Java 21, Python 3.11, Docker, [Ollama](https://ollama.ai) with `qwen3:14b` pulled (`ollama pull qwen3:14b`).
+> Prerequisites: Java 21, Python 3.11, Docker, [Ollama](https://ollama.ai) with `mistral` pulled (`ollama pull mistral`).
 
 ```bash
 # Clone
 git clone https://github.com/NikunjS91/Sentinel.git
 cd Sentinel
 
-# Start infrastructure (Postgres 16, Redis 7, Kafka)
+# Start infrastructure (Postgres 16, Redis 7, Kafka, Prometheus, Loki, Grafana, Promtail, MinIO — 8 services)
 docker compose up -d
+docker compose ps   # confirm all 8 services healthy
 
 # Terminal A — control plane (port 8080)
 cd orchestrator && ./mvnw spring-boot:run
 
 # Terminal B — agent plane (port 8001)
-cd agents && pip install -e ".[dev]"
+cd agents && python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
 uvicorn app.main:app --port 8001
 
-# Terminal C — fire an alert and watch it resolve
+# Terminal C — fire an alert and watch the three-agent pipeline resolve it
 curl -i -X POST http://localhost:8080/alerts \
   -H 'Content-Type: application/json' \
   -d @sample-alert.json
-# → 201 Created  (new incident, starts the pipeline)
+# → 201 Created  (new incident, dispatches echo + log_analyzer + metrics)
 # → Same curl again → 200 OK (deduplicated — same incident ID returned)
 
-# Wait ~15s for the LLM call, then inspect the outcome
+# Wait ~45s for the three LLM calls, then inspect
 docker compose exec postgres psql -U sentinel -d sentinel \
   -c "SELECT id, state, severity FROM incidents;"
 # state should be RESOLVED
 
 docker compose exec postgres psql -U sentinel -d sentinel \
-  -c "SELECT agent_name, status, tokens_used FROM agent_traces;"
+  -c "SELECT agent_name, status, tokens_used, output->>'confidence' AS confidence FROM agent_traces;"
 
 docker compose exec postgres psql -U sentinel -d sentinel \
   -c "SELECT summary FROM incident_reports;"
 
+# Optional: inject a slow_query failure and observe swarm asymmetry
+curl -s -X POST http://localhost:8090/admin/failure-mode \
+  -H 'Content-Type: application/json' -d '{"mode":"slow_query"}'
+# Then fire alerts and observe Log Analyzer ≈0.15 confidence vs Metrics ≈0.88
+# See docs/demos/SPRINT-2-SWARM-ASYMMETRY.md for the full demo script
+
 # Run all tests (requires Docker)
-cd orchestrator && ./mvnw verify          # 31 Java tests
-cd ../agents && ruff check . && mypy . && pytest  # 9 Python tests
+cd orchestrator && ./mvnw verify             # ~40 Java tests
+cd ../agents && ruff check . && mypy . && pytest  # 37 Python tests
+cd ../demo-app && mvn verify                 # 8 demo-app tests
 ```
 
 > Day-plan docs are in `docs/`. `sample-alert.json` is at the repo root.
@@ -212,7 +229,7 @@ The project is built in six two-week sprints, scoped as **Phase 1** of a longer 
 ### Phase 1 — Diagnosis Swarm (MVP)
 
 - [x] **Sprint 1** — Foundation: full pipeline end-to-end ✅ — alert ingestion, state machine, classifier/dispatcher, Python agent service, LLM abstraction (Ollama), aggregator, 31+9 tests, real CI
-- [ ] **Sprint 2** — Demo app emitting realistic telemetry, synthetic incident generator, Log Analyzer + Metrics agents
+- [x] **Sprint 2** — Demo app + full observability stack, Log Analyzer + Metrics agents, tool layer, prompt registry, dict dispatch, swarm asymmetry codified ✅ — ~40+37+8 tests, three-agent fan-in, CI-gated
 - [ ] **Sprint 3** — Synthesizer agent, parallel dispatch, partial-result handling, live React dashboard with SSE
 - [ ] **Sprint 4** — Topology, History (pgvector), and Runbook agents
 - [ ] **Sprint 5** — Production hardening: circuit breakers, budgets, evaluation harness, prompt versioning
