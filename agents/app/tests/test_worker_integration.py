@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 from testcontainers.kafka import KafkaContainer
 
 from app.models import AgentResult, AgentTask
+from app.prompt_registry import PromptRegistry
 from app.settings import Settings
 from app.worker import KafkaWorker
 
@@ -74,6 +75,7 @@ async def test_tc_1_7_2_worker_consumes_and_produces(kafka_bootstrap: str) -> No
     )
     worker = KafkaWorker(s)
     await worker.start()
+    worker.prompt_registry = PromptRegistry(s.prompts_dir)
 
     incident_id = uuid.uuid4()
     task = AgentTask(incident_id=incident_id, agent_name="echo", service="order-api")
@@ -108,6 +110,7 @@ async def test_tc_1_7_3_malformed_message_goes_to_dlq(kafka_bootstrap: str) -> N
     )
     worker = KafkaWorker(s)
     await worker.start()
+    worker.prompt_registry = PromptRegistry(s.prompts_dir)
 
     producer = AIOKafkaProducer(bootstrap_servers=kafka_bootstrap)
     await producer.start()
