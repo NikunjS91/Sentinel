@@ -242,4 +242,38 @@ class AggregatorIntegrationTest {
             assertThat(reportRepository.count()).isEqualTo(1);
         });
     }
+
+    // TC-2.10.2: aggregator uses expected_agents size, not a hardcoded count
+    @Test
+    void tc_2_10_2_aggregator_uses_expected_agents_not_hardcoded_count() throws Exception {
+        // Build incident with only 2 expected agents (not 3)
+        Incident inc = buildDispatchedIncident();
+        inc.setExpectedAgents(List.of("echo", "log_analyzer"));
+        incidentRepository.save(inc);
+
+        // Send only two results — should still resolve because expected set = 2
+        kafkaTemplate.send("agent.results", inc.getId().toString(), resultJson(inc.getId(), "echo", "ok")).get();
+        kafkaTemplate.send("agent.results", inc.getId().toString(), resultJson(inc.getId(), "log_analyzer", "ok")).get();
+
+        await().atMost(15, SECONDS).untilAsserted(() ->
+            assertThat(incidentRepository.findById(inc.getId()).orElseThrow().getState())
+                .isEqualTo(IncidentState.RESOLVED)
+        );
+    }
+
+    // TC-2.10.3: empty expected_agents does not resolve on first result
+    @Test
+    void tc_2_10_3_empty_expected_agents_does_not_resolve() throws Exception {
+        // Build incident with default empty expected_agents
+        Incident inc = buildDispatchedIncident();
+        // expected_agents defaults to [] — no need to set
+
+        kafkaTemplate.send("agent.results", inc.getId().toString(), resultJson(inc.getId(), "echo", "ok")).get();
+
+        // Give the aggregator time to process
+        Thread.sleep(3000);
+
+        assertThat(incidentRepository.findById(inc.getId()).orElseThrow().getState())
+            .isEqualTo(IncidentState.DISPATCHED);
+    }
 }

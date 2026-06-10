@@ -8,10 +8,9 @@ from __future__ import annotations
 import logging
 from datetime import timedelta
 
-from ..llm.base import LLMClient
 from ..models import AgentResult, AgentTask
-from ..prompt_registry import PromptRegistry
 from ..tools.logs import query_logs
+from ._context import AgentContext
 from ._parse import call_with_retry
 from .types import LogAnalyzerFinding
 
@@ -20,14 +19,12 @@ log = logging.getLogger(__name__)
 _LOG_WINDOW = timedelta(minutes=10)
 
 
-async def log_analyzer(
-    task: AgentTask, llm: LLMClient, prompts: PromptRegistry
-) -> AgentResult:
+async def log_analyzer(task: AgentTask, ctx: AgentContext) -> AgentResult:
     """Run the Log Analyzer on one incident."""
     logql = f'{{service="{task.service}"}}'
     log_result = await query_logs(logql, window=_LOG_WINDOW)
 
-    prompt = prompts.get("log_analyzer")
+    prompt = ctx.prompts.get("log_analyzer")
     rendered = prompt.body.replace("{log_summary}", log_result.model_dump_json())
 
     fallback = LogAnalyzerFinding(
@@ -37,7 +34,7 @@ async def log_analyzer(
         confidence=0.0,
     )
     finding, stats = await call_with_retry(
-        llm, rendered, LogAnalyzerFinding, fallback, "log_analyzer"
+        ctx.llm, rendered, LogAnalyzerFinding, fallback, "log_analyzer"
     )
 
     return AgentResult(

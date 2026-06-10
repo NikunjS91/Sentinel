@@ -243,4 +243,19 @@ class ClassifierDispatchIntegrationTest {
         );
         assertThat(stateRows).isEqualTo(2);
     }
+
+    // TC-2.10.1: dispatcher records expected_agents on the incident row
+    @Test
+    void tc_2_10_1_dispatcher_records_expected_agents() {
+        ResponseEntity<IncidentDto> resp = http.postForEntity("/alerts", CRITICAL_ALERT, IncidentDto.class);
+        assertThat(resp.getStatusCode().value()).isEqualTo(201);
+        UUID incidentId = resp.getBody().id();
+
+        await().atMost(10, SECONDS).untilAsserted(() -> {
+            Incident inc = incidentRepository.findById(incidentId).orElseThrow();
+            assertThat(inc.getState()).isEqualTo(IncidentState.DISPATCHED);
+            assertThat(inc.getExpectedAgents())
+                .containsExactlyInAnyOrder("echo", "log_analyzer", "metrics");
+        });
+    }
 }

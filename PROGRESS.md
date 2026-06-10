@@ -2,6 +2,27 @@
 
 ## Sprint 2 — Demo App & First Agents
 
+### Day 19 (S2-D9) — Multi-agent dispatch refactor
+- Done: `AgentContext` frozen dataclass in `agents/app/agents/_context.py`; uniform
+  agent signature `(task, ctx: AgentContext)` across echo, log_analyzer, metrics_agent;
+  `AGENTS` dict + `AgentFn` type alias + `known_agents()` in `_registry.py`; worker
+  `_handle` collapsed to single dict-dispatch branch with one `prompt_registry` guard.
+  Java: V2 Flyway migration adds `incidents.expected_agents JSONB NOT NULL DEFAULT '[]'`;
+  `Incident` entity gains `expectedAgents: List<String>` with `@JdbcTypeCode(SqlTypes.JSON)`;
+  `Dispatcher` now constructor-injects `IncidentRepository`, saves `expectedAgents` before
+  Kafka send; `AggregatorListener` resolves when `traceCount >= expectedCount` where
+  `expectedCount = inc.getExpectedAgents().size()` (with `expectedCount > 0` guard).
+  Tests: TC-2.10.1 (dispatcher records expected_agents), TC-2.10.2 (aggregator uses
+  dynamic count, resolves 2-agent incident at 2 traces), TC-2.10.3 (empty expected_agents
+  never resolves). All prior Python (34 non-Docker) + Java tests pass unchanged.
+- Decisions: `AgentContext` is a frozen dataclass (not Pydantic) — holds non-serializable
+  objects (LLM client, prompt registry). `expected_agents` is JSONB on the incident row;
+  `List.copyOf()` at the dispatcher boundary prevents caller mutation.
+- Added-agent contract verified: writing a new agent requires exactly two edits —
+  (1) register in Python `AGENTS` dict, (2) append to `List.of(...)` in
+  `ClassifierListener.java`. No threshold to update, no aggregator change.
+- Next: Day 20 — Sprint 2 close (integration tests, demo, retrospective).
+
 ### Day 18 (S2-D8) — Metrics agent
 - Done: `agents/app/agents/_parse.py` — shared `call_with_retry`/`try_parse`
   helpers generic over Pydantic model (`T = TypeVar("T", bound=BaseModel)`);

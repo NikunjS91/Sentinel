@@ -1,13 +1,16 @@
 import uuid
+from pathlib import Path
 
 import pytest
 
+from app.agents._context import AgentContext
 from app.agents.echo import echo_agent
 from app.llm.base import LLMResponse
 from app.llm.factory import make_llm_client
 from app.llm.ollama import OllamaClient
 from app.models import AgentTask
-from app.settings import Settings
+from app.prompt_registry import PromptRegistry
+from app.settings import Settings, settings
 
 
 class _FakeLLM:
@@ -18,6 +21,11 @@ class _FakeLLM:
 class _ErrorLLM:
     async def complete(self, prompt: str) -> LLMResponse:
         raise RuntimeError("LLM unavailable")
+
+
+def _ctx(llm: object) -> AgentContext:
+    registry = PromptRegistry(Path(settings.prompts_dir))
+    return AgentContext(llm=llm, prompts=registry)  # type: ignore[arg-type]
 
 
 # TC-1.8.1: factory selects correct backend
@@ -36,7 +44,7 @@ def test_tc_1_8_1_factory_unknown_raises() -> None:
 # TC-1.8.2: echo agent returns a valid result
 async def test_tc_1_8_2_echo_agent_ok() -> None:
     task = AgentTask(incident_id=uuid.uuid4(), agent_name="echo", service="order-api")
-    result = await echo_agent(task, _FakeLLM())
+    result = await echo_agent(task, _ctx(_FakeLLM()))
     assert result.status == "ok"
     assert result.output["message"] == "Acknowledged."
     assert result.tokens_used == 12
@@ -48,7 +56,7 @@ async def test_tc_1_8_2_echo_agent_ok() -> None:
 # TC-1.8.4: echo agent survives LLM failure
 async def test_tc_1_8_4_echo_agent_llm_error() -> None:
     task = AgentTask(incident_id=uuid.uuid4(), agent_name="echo", service="order-api")
-    result = await echo_agent(task, _ErrorLLM())
+    result = await echo_agent(task, _ctx(_ErrorLLM()))
     assert result.status == "error"
     assert "error" in result.output
     assert result.incident_id == task.incident_id

@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import static jakarta.persistence.EnumType.STRING;
 
@@ -29,6 +31,10 @@ public class Incident {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "raw_alert", columnDefinition = "jsonb", nullable = false)
     private String rawAlert;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "expected_agents", nullable = false, columnDefinition = "jsonb")
+    private List<String> expectedAgents = new ArrayList<>();
 
     @Column(name = "deadline_at")
     private OffsetDateTime deadlineAt;
@@ -58,6 +64,9 @@ public class Incident {
 
     public String getRawAlert() { return rawAlert; }
     public void setRawAlert(String rawAlert) { this.rawAlert = rawAlert; }
+
+    public List<String> getExpectedAgents() { return expectedAgents; }
+    public void setExpectedAgents(List<String> agents) { this.expectedAgents = agents; }
 
     public OffsetDateTime getDeadlineAt() { return deadlineAt; }
     public void setDeadlineAt(OffsetDateTime deadlineAt) { this.deadlineAt = deadlineAt; }

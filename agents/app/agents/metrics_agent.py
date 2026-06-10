@@ -11,10 +11,9 @@ from datetime import timedelta
 
 from pydantic import BaseModel
 
-from ..llm.base import LLMClient
 from ..models import AgentResult, AgentTask
-from ..prompt_registry import PromptRegistry
 from ..tools.metrics import query_metrics, slo_violations
+from ._context import AgentContext
 from ._parse import call_with_retry
 from .types import MetricsAgentFinding
 
@@ -30,9 +29,7 @@ class _MetricsSummary(BaseModel):
     heap_usage_series: list[dict]  # type: ignore[type-arg]
 
 
-async def metrics_agent(
-    task: AgentTask, llm: LLMClient, prompts: PromptRegistry
-) -> AgentResult:
+async def metrics_agent(task: AgentTask, ctx: AgentContext) -> AgentResult:
     """Run the Metrics agent on one incident."""
     service = task.service
 
@@ -63,7 +60,7 @@ async def metrics_agent(
 
     # Day 17 lesson: use .replace(), NOT .format() — the prompt body contains
     # literal {...} in its JSON schema example which breaks str.format().
-    prompt = prompts.get("metrics_agent")
+    prompt = ctx.prompts.get("metrics_agent")
     rendered = prompt.body.replace("{metrics_summary}", summary.model_dump_json())
 
     fallback = MetricsAgentFinding(
@@ -73,7 +70,7 @@ async def metrics_agent(
         confidence=0.0,
     )
     finding, stats = await call_with_retry(
-        llm, rendered, MetricsAgentFinding, fallback, agent_name="metrics"
+        ctx.llm, rendered, MetricsAgentFinding, fallback, agent_name="metrics"
     )
 
     return AgentResult(

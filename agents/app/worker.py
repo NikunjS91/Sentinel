@@ -6,9 +6,8 @@ from typing import Any
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from pydantic import ValidationError
 
-from .agents.echo import echo_agent
-from .agents.log_analyzer import log_analyzer
-from .agents.metrics_agent import metrics_agent
+from .agents._context import AgentContext
+from .agents._registry import AGENTS
 from .llm.base import LLMClient
 from .llm.factory import make_llm_client
 from .models import AgentResult, AgentTask
@@ -19,8 +18,7 @@ log = logging.getLogger(__name__)
 
 
 class KafkaWorker:
-    """Consumes agent.tasks, produces stub agent.results (Day 7).
-    Day 8 replaces the stub with a real LLM call."""
+    """Consumes agent.tasks, routes to the appropriate agent via AGENTS dict."""
 
     def __init__(self, settings: Settings) -> None:
         self.s = settings
@@ -76,23 +74,23 @@ class KafkaWorker:
             await self._to_dlq(raw, reason=f"parse_error: {e}")
             return
 
-        if task.agent_name == "echo":
-            result = await echo_agent(task, self._llm)
-        elif task.agent_name == "log_analyzer":
-            if self.prompt_registry is None:
-                raise RuntimeError("worker has no prompt_registry — lifespan wiring is broken")
-            result = await log_analyzer(task, self._llm, self.prompt_registry)
-        elif task.agent_name == "metrics":
-            if self.prompt_registry is None:
-                raise RuntimeError("worker has no prompt_registry — lifespan wiring is broken")
-            result = await metrics_agent(task, self._llm, self.prompt_registry)
-        else:
+        if self.prompt_registry is None:
+            raise RuntimeError(
+                "worker has no prompt_registry — lifespan wiring is broken"
+            )
+
+        ctx = AgentContext(llm=self._llm, prompts=self.prompt_registry)
+        agent_fn = AGENTS.get(task.agent_name)
+
+        if agent_fn is None:
             result = AgentResult(
                 incident_id=task.incident_id,
                 agent_name=task.agent_name,
                 output={"error": f"unknown agent: {task.agent_name}"},
                 status="error",
             )
+        else:
+            result = await agent_fn(task, ctx)
 
         assert self._producer is not None
         await self._producer.send_and_wait(
