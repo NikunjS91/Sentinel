@@ -44,7 +44,7 @@ class _FakeLLM:
 
 
 @pytest.mark.asyncio
-async def test_slow_query_produces_swarm_asymmetry(monkeypatch):
+async def test_slow_query_produces_swarm_asymmetry(monkeypatch: pytest.MonkeyPatch) -> None:
     """TC-2.11.2 — On slow_query the agents reach DIFFERENT conclusions.
 
     Log Analyzer sees ordinary INFO logs → low confidence.
