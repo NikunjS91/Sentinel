@@ -18,7 +18,7 @@ A single large AI model handling all of that does it poorly: too many concerns, 
 
 Sentinel uses a **swarm of specialist agents**, each narrow and good at one job, working in parallel — like a hospital ER team where the nurse, radiologist, lab tech, and specialist all work on one patient simultaneously instead of one after another.
 
-Five investigators each produce a fragment of the picture; a sixth agent combines them into one answer:
+Two specialist investigators are running today; four more are planned. Together they feed a Synthesizer that combines everything into one answer:
 
 | Agent | Job | Example finding | Status |
 |---|---|---|---|
@@ -37,9 +37,10 @@ The result, delivered in seconds: *what broke, why, whether it's been seen befor
 
 Sentinel is built as a hybrid system across two runtimes, connected by a durable event log:
 
-- **Control Plane — Spring Boot (Java):** alert ingestion, classification, dispatch, orchestration, budget governance, result aggregation. Stateless and horizontally scalable.
+- **Control Plane — Spring Boot (Java):** alert ingestion, classification, dispatch, result aggregation, incident state machine. Stateless and horizontally scalable.
 - **Agent Plane — FastAPI (Python):** the agent swarm, LLM gateway, and tool layer. Sandboxed and least-privilege.
 - **Event Log — Kafka:** durable, partitioned by incident, the source of truth for events. Decouples the planes so a slow or failed agent never blocks the system.
+- **Observability — Prometheus + Loki + Grafana:** containerized telemetry stack; the demo app emits structured metrics and logs; agents query both via PromQL and LogQL tools during incident triage.
 
 ```mermaid
 flowchart TB
@@ -73,15 +74,24 @@ flowchart TB
 
     subgraph AP["Agent Plane · FastAPI (Python)"]
         direction TB
-        LLM[LLM Gateway\nQueue · Circuit Breaker · Fallback]
-        subgraph Agents["Agent Workers"]
-            A1[Log Analyzer]
-            A2[Metrics]
-            A3[Topology]
-            A4[History]
-            A5[Runbook]
-            A6[Synthesizer]
+        LLM[LLM Gateway\nRetry · Fallback]
+        subgraph Agents["Agent Workers — Sprint 2"]
+            A1[Echo]
+            A2[Log Analyzer]
+            A3[Metrics]
         end
+        subgraph AgentsPlanned["Planned — Sprint 3–4"]
+            AP1[Synthesizer]
+            AP2[Topology]
+            AP3[History]
+            AP4[Runbook]
+        end
+    end
+
+    subgraph OBS["Observability · Prometheus · Loki · Grafana"]
+        PROM[Prometheus\nPromQL]
+        LOKI[Loki\nLogQL]
+        GRAF[Grafana]
     end
 
     subgraph Data["State & Data"]
@@ -107,17 +117,21 @@ flowchart TB
     AGG <--> PG
     CP <--> RD
     AP --> S3
+    DA -->|metrics + logs| OBS
+    AP -->|PromQL / LogQL| OBS
+    PROM --> GRAF
+    LOKI --> GRAF
 ```
 
 ### Design principles
 
-- **Idempotent ingestion** — duplicate alerts are deduplicated; alert storms collapse into a single incident.
-- **Durable incident state** — the incident lifecycle is an explicit state machine persisted in Postgres, so any orchestrator replica can resume any incident after a crash.
-- **Graceful degradation** — if an agent times out, the system proceeds with a `PARTIAL` result and flags the gap rather than blocking.
-- **Bounded cost** — token budgets are enforced per-incident, per-tenant, and globally, with a kill switch.
-- **Resilient LLM calls** — a dedicated LLM gateway adds queueing, circuit breakers, retries, and a model fallback ladder.
-- **Self-observability** — Sentinel runs its own isolated telemetry stack so a customer outage never blinds Sentinel itself.
-- **Extensible swarms** — agents are registered by capability, so new swarm types can be added without rewriting the orchestrator.
+- **Idempotent ingestion** — duplicate alerts are deduplicated; alert storms collapse into a single incident. *(built — Sprint 1)*
+- **Durable incident state** — the incident lifecycle is an explicit state machine persisted in Postgres, so any orchestrator replica can resume any incident after a crash. *(built — Sprint 1)*
+- **Extensible swarms** — agents are registered in a dict; adding a new agent is two edits (registry + dispatcher). *(built — Sprint 2)*
+- **Self-observability** — Sentinel runs its own isolated Prometheus/Loki/Grafana stack; a customer outage never blinds Sentinel itself. *(built — Sprint 2)*
+- **Graceful degradation** — if an agent times out, the system proceeds with a `PARTIAL` result and flags the gap rather than blocking. *(planned — Sprint 3)*
+- **Resilient LLM calls** — dedicated LLM gateway with circuit breakers, model fallback ladder, and per-incident token budgets. *(partial: basic retry built Sprint 1; circuit breakers + budgets planned Sprint 5)*
+- **Bounded cost** — token budgets enforced per-incident, per-tenant, and globally, with a kill switch. *(planned — Sprint 5)*
 
 ---
 
