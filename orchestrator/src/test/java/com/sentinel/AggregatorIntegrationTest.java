@@ -93,6 +93,12 @@ class AggregatorIntegrationTest {
         return incidentRepository.save(inc);
     }
 
+    private Incident buildAggregatingIncident() {
+        Incident inc = buildDispatchedIncident();
+        inc.setState(IncidentState.AGGREGATING);
+        return incidentRepository.save(inc);
+    }
+
     private String resultJson(UUID incidentId, String agentName, String status) throws Exception {
         Map<String, Object> payload = Map.of(
             "incidentId", incidentId.toString(),
@@ -105,11 +111,40 @@ class AggregatorIntegrationTest {
         return objectMapper.writeValueAsString(payload);
     }
 
-    // Convenience: send all three expected agent results (echo + log_analyzer + metrics) to trigger resolution.
+    private String synthesizerResultJson(UUID incidentId) throws Exception {
+        Map<String, Object> payload = Map.of(
+            "incidentId", incidentId.toString(),
+            "agentName", "synthesizer",
+            "output", Map.of(
+                "summary", "Synthesized: slow DB query causing latency spike",
+                "root_cause", "slow DB query",
+                "recommended_action", "check slow query log",
+                "confidence", 0.8,
+                "dissenting_notes", List.of(),
+                "contributing_agents", List.of("echo", "log_analyzer", "metrics")
+            ),
+            "tokensUsed", 300,
+            "latencyMs", 500,
+            "status", "ok"
+        );
+        return objectMapper.writeValueAsString(payload);
+    }
+
+    /** Send all three specialist results. */
     private void sendThreeResults(UUID incidentId, String status) throws Exception {
         kafkaTemplate.send("agent.results", incidentId.toString(), resultJson(incidentId, "echo", status)).get();
         kafkaTemplate.send("agent.results", incidentId.toString(), resultJson(incidentId, "log_analyzer", status)).get();
         kafkaTemplate.send("agent.results", incidentId.toString(), resultJson(incidentId, "metrics", status)).get();
+    }
+
+    /** Send three specialist results, wait for AGGREGATING, then send Synthesizer result. */
+    private void sendThreeResultsThenSynthesizer(UUID incidentId) throws Exception {
+        sendThreeResults(incidentId, "ok");
+        await().atMost(10, SECONDS).untilAsserted(() ->
+            assertThat(incidentRepository.findById(incidentId).orElseThrow().getState())
+                .isEqualTo(IncidentState.AGGREGATING)
+        );
+        kafkaTemplate.send("agent.results", incidentId.toString(), synthesizerResultJson(incidentId)).get();
     }
 
     // TC-1.9.1: result creates a trace row with correct fields
@@ -127,7 +162,8 @@ class AggregatorIntegrationTest {
         });
     }
 
-    // TC-1.9.2: incident resolves after both agent results arrive, report written, incidents.synthesized published
+    // TC-1.9.2: incident resolves after all agent results + synthesizer arrive,
+    //           report written, incidents.synthesized published
     @Test
     void tc_1_9_2_incident_resolves() throws Exception {
         Incident inc = buildDispatchedIncident();
@@ -144,8 +180,7 @@ class AggregatorIntegrationTest {
                 consumer.seek(tp, endOffsets.get(tp));
             }
 
-            // Sprint 2: need both echo and log_analyzer results to resolve.
-            sendThreeResults(inc.getId(), "ok");
+            sendThreeResultsThenSynthesizer(inc.getId());
 
             await().atMost(15, SECONDS).untilAsserted(() -> {
                 Incident updated = incidentRepository.findById(inc.getId()).orElseThrow();
@@ -165,10 +200,9 @@ class AggregatorIntegrationTest {
         Incident inc = buildDispatchedIncident();
         String echoPayload = resultJson(inc.getId(), "echo", "ok");
 
-        // Send both to reach RESOLVED
-        sendThreeResults(inc.getId(), "ok");
+        sendThreeResultsThenSynthesizer(inc.getId());
 
-        await().atMost(15, SECONDS).untilAsserted(() ->
+        await().atMost(20, SECONDS).untilAsserted(() ->
             assertThat(incidentRepository.findById(inc.getId()).orElseThrow().getState())
                 .isEqualTo(IncidentState.RESOLVED)
         );
@@ -177,20 +211,27 @@ class AggregatorIntegrationTest {
         kafkaTemplate.send("agent.results", inc.getId().toString(), echoPayload).get();
         Thread.sleep(3000);
 
-        assertThat(traceRepository.findAll()).hasSize(3);
+        // 4 traces: 3 specialists + 1 synthesizer
+        assertThat(traceRepository.findAll()).hasSize(4);
         assertThat(incidentRepository.findById(inc.getId()).orElseThrow().getState())
             .isEqualTo(IncidentState.RESOLVED);
     }
 
-    // TC-1.9.4: error-status result still records trace; incident resolves once all three results arrive
+    // TC-1.9.4: error-status result still records trace; incident resolves once all results arrive
     @Test
     void tc_1_9_4_error_status_still_records_and_resolves() throws Exception {
         Incident inc = buildDispatchedIncident();
 
-        // Send echo with error status, then log_analyzer + metrics with ok — all three needed to resolve
         kafkaTemplate.send("agent.results", inc.getId().toString(), resultJson(inc.getId(), "echo", "error")).get();
         kafkaTemplate.send("agent.results", inc.getId().toString(), resultJson(inc.getId(), "log_analyzer", "ok")).get();
         kafkaTemplate.send("agent.results", inc.getId().toString(), resultJson(inc.getId(), "metrics", "ok")).get();
+
+        await().atMost(10, SECONDS).untilAsserted(() ->
+            assertThat(incidentRepository.findById(inc.getId()).orElseThrow().getState())
+                .isEqualTo(IncidentState.AGGREGATING)
+        );
+
+        kafkaTemplate.send("agent.results", inc.getId().toString(), synthesizerResultJson(inc.getId())).get();
 
         await().atMost(10, SECONDS).untilAsserted(() -> {
             var trace = traceRepository.findByIncidentIdAndAgentName(inc.getId(), "echo");
@@ -219,27 +260,26 @@ class AggregatorIntegrationTest {
         Incident inc = buildDispatchedIncident();
         kafkaTemplate.send("agent.results", inc.getId().toString(), resultJson(inc.getId(), "echo", "ok")).get();
 
-        // Wait for trace to be recorded
         await().atMost(10, SECONDS).untilAsserted(() ->
             assertThat(traceRepository.findByIncidentIdAndAgentName(inc.getId(), "echo")).isPresent()
         );
 
-        // Incident must NOT be resolved yet — only one of three expected agents reported
         assertThat(incidentRepository.findById(inc.getId()).orElseThrow().getState())
             .isEqualTo(IncidentState.DISPATCHED);
     }
 
-    // TC-2.8.8: incident resolves after all three results arrive, three traces recorded
+    // TC-2.8.8: incident resolves after all three specialists + synthesizer, four traces recorded
     @Test
-    void tc_2_8_8_incident_resolves_after_all_three_results() throws Exception {
+    void tc_2_8_8_incident_resolves_after_all_results() throws Exception {
         Incident inc = buildDispatchedIncident();
 
-        sendThreeResults(inc.getId(), "ok");
+        sendThreeResultsThenSynthesizer(inc.getId());
 
-        await().atMost(15, SECONDS).untilAsserted(() -> {
+        await().atMost(20, SECONDS).untilAsserted(() -> {
             assertThat(incidentRepository.findById(inc.getId()).orElseThrow().getState())
                 .isEqualTo(IncidentState.RESOLVED);
-            assertThat(traceRepository.countByIncidentId(inc.getId())).isEqualTo(3);
+            // 4 traces: 3 specialists + 1 synthesizer
+            assertThat(traceRepository.countByIncidentId(inc.getId())).isEqualTo(4);
             assertThat(reportRepository.count()).isEqualTo(1);
         });
     }
@@ -247,14 +287,19 @@ class AggregatorIntegrationTest {
     // TC-2.10.2: aggregator uses expected_agents size, not a hardcoded count
     @Test
     void tc_2_10_2_aggregator_uses_expected_agents_not_hardcoded_count() throws Exception {
-        // Build incident with only 2 expected agents (not 3)
         Incident inc = buildDispatchedIncident();
         inc.setExpectedAgents(List.of("echo", "log_analyzer"));
         incidentRepository.save(inc);
 
-        // Send only two results — should still resolve because expected set = 2
         kafkaTemplate.send("agent.results", inc.getId().toString(), resultJson(inc.getId(), "echo", "ok")).get();
         kafkaTemplate.send("agent.results", inc.getId().toString(), resultJson(inc.getId(), "log_analyzer", "ok")).get();
+
+        await().atMost(10, SECONDS).untilAsserted(() ->
+            assertThat(incidentRepository.findById(inc.getId()).orElseThrow().getState())
+                .isEqualTo(IncidentState.AGGREGATING)
+        );
+
+        kafkaTemplate.send("agent.results", inc.getId().toString(), synthesizerResultJson(inc.getId())).get();
 
         await().atMost(15, SECONDS).untilAsserted(() ->
             assertThat(incidentRepository.findById(inc.getId()).orElseThrow().getState())
@@ -265,17 +310,97 @@ class AggregatorIntegrationTest {
     // TC-2.10.3: empty expected_agents does not resolve on first result
     @Test
     void tc_2_10_3_empty_expected_agents_does_not_resolve() throws Exception {
-        // Build incident and explicitly clear expected_agents to test the safety guard.
         Incident inc = buildDispatchedIncident();
         inc.setExpectedAgents(List.of());
         incidentRepository.save(inc);
 
         kafkaTemplate.send("agent.results", inc.getId().toString(), resultJson(inc.getId(), "echo", "ok")).get();
 
-        // Give the aggregator time to process
         Thread.sleep(3000);
 
         assertThat(incidentRepository.findById(inc.getId()).orElseThrow().getState())
             .isEqualTo(IncidentState.DISPATCHED);
+    }
+
+    // TC-3.1.4: aggregator dispatches Synthesizer after all specialists complete
+    @Test
+    void tc_3_1_4_aggregator_dispatches_synthesizer_after_specialists() throws Exception {
+        Incident inc = buildDispatchedIncident();
+
+        List<TopicPartition> taskPartitions = List.of(
+            new TopicPartition("agent.tasks", 0),
+            new TopicPartition("agent.tasks", 1),
+            new TopicPartition("agent.tasks", 2)
+        );
+        try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(consumerProps())) {
+            consumer.assign(taskPartitions);
+            var endOffsets = consumer.endOffsets(taskPartitions);
+            for (var tp : taskPartitions) {
+                consumer.seek(tp, endOffsets.get(tp));
+            }
+
+            sendThreeResults(inc.getId(), "ok");
+
+            await().atMost(10, SECONDS).untilAsserted(() ->
+                assertThat(incidentRepository.findById(inc.getId()).orElseThrow().getState())
+                    .isEqualTo(IncidentState.AGGREGATING)
+            );
+
+            // The Synthesizer task should have been published to agent.tasks.
+            ConsumerRecords<String, String> records = consumer.poll(Duration.ofSeconds(5));
+            var allTaskRecords = new java.util.ArrayList<org.apache.kafka.clients.consumer.ConsumerRecord<String, String>>();
+            records.records("agent.tasks").forEach(allTaskRecords::add);
+            var synthTask = allTaskRecords.stream()
+                .filter(r -> {
+                    try {
+                        var node = objectMapper.readTree(r.value());
+                        return "synthesizer".equals(node.path("agentName").asText());
+                    } catch (Exception e) { return false; }
+                })
+                .findFirst();
+
+            assertThat(synthTask).isPresent();
+            var taskNode = objectMapper.readTree(synthTask.get().value());
+            assertThat(taskNode.path("agentName").asText()).isEqualTo("synthesizer");
+            assertThat(taskNode.path("payload").path("specialist_findings").isArray()).isTrue();
+            assertThat(taskNode.path("payload").path("specialist_findings").size()).isEqualTo(3);
+        }
+    }
+
+    // TC-3.1.5: Synthesizer result drives the final report (not a specialist's output)
+    @Test
+    void tc_3_1_5_synthesizer_result_drives_report() throws Exception {
+        Incident inc = buildAggregatingIncident();
+
+        String synthJson = objectMapper.writeValueAsString(Map.of(
+            "incidentId", inc.getId().toString(),
+            "agentName", "synthesizer",
+            "output", Map.of(
+                "summary", "DB connection pool exhausted under load",
+                "root_cause", "connection pool limit too low",
+                "recommended_action", "increase pool size to 50",
+                "confidence", 0.92,
+                "dissenting_notes", List.of(),
+                "contributing_agents", List.of("log_analyzer", "metrics")
+            ),
+            "tokensUsed", 200,
+            "latencyMs", 400,
+            "status", "ok"
+        ));
+
+        kafkaTemplate.send("agent.results", inc.getId().toString(), synthJson).get();
+
+        await().atMost(10, SECONDS).untilAsserted(() -> {
+            assertThat(incidentRepository.findById(inc.getId()).orElseThrow().getState())
+                .isEqualTo(IncidentState.RESOLVED);
+            assertThat(reportRepository.count()).isEqualTo(1);
+        });
+
+        var report = reportRepository.findAll().get(0);
+        assertThat(report.getSummary()).isEqualTo("DB connection pool exhausted under load");
+        assertThat(report.getRootCause()).isEqualTo("connection pool limit too low");
+        assertThat(report.getRecommendedAction()).isEqualTo("increase pool size to 50");
+        assertThat(report.getConfidence()).isNotNull();
+        assertThat(report.getConfidence().doubleValue()).isGreaterThan(0.9);
     }
 }

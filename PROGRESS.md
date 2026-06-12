@@ -1,5 +1,40 @@
 # Sentinel — Progress Log
 
+## Sprint 3 — Synthesis, Deadlines, UI
+
+### Day 21 (S3-D1) — Synthesizer agent + two-stage dispatch
+- Done: `SynthesizerFinding` typed model (summary, root_cause, recommended_action,
+  confidence, dissenting_notes, contributing_agents) added to `agents/app/agents/types.py`.
+  `agents/app/prompts/synthesizer.txt` replaced with real weighting-guidance prompt
+  (two template variables, `.replace()` not `.format()`, explicit dissent instructions).
+  `agents/app/agents/synthesizer.py` — meta-agent using shared `call_with_retry` +
+  `AgentContext` (Day-18/19 pattern); contributing_agents populated post-hoc if LLM forgets.
+  Registered in `AGENTS` dict — edit one of Day-19 contract's two edits for a specialist
+  (see architecture note below).
+  Java: `SynthesizerTaskBuilder` reads `agent_traces`, deserializes output strings,
+  builds specialist_findings payload; `Dispatcher.dispatchSynthesizer` separate from
+  `dispatch` (does NOT touch expected_agents); `AgentTraceRepository` gains
+  `findByIncidentId` and `countByIncidentIdAndAgentNameNot`.
+  `AggregatorListener` refactored into two-stage logic: `handleSpecialistResult` →
+  AGGREGATING + dispatch Synthesizer when specialist count reaches expected; 
+  `handleSynthesizerResult` → write report from Synthesizer output + SYNTHESIZED + RESOLVED
+  (guarded by `state == AGGREGATING` to prevent double-resolution on redelivery).
+  Report now populated from Synthesizer's summary/root_cause/recommended_action/confidence,
+  not the last specialist's message.
+  Tests: TC-3.1.1-3.1.3 (Python unit), TC-3.1.4-3.1.5 (Java integration),
+  TC-3.1.6 (`SprintThreeE2ETest` e2e). All pre-existing tests updated to reflect
+  two-stage dispatch (await AGGREGATING before sending Synthesizer result; trace count 4).
+  Final: 42 Java tests + 36 Python tests (non-infra), all green. ruff + mypy strict clean.
+- Architecture note: The Day-19 "two edits" contract holds for SPECIALISTS (parallel
+  siblings — Topology, History, Runbook in Sprint 4 will each be two edits).
+  The Synthesizer is a META-AGENT: it needs orchestration code specific to its role
+  (two-stage dispatch, SynthesizerTaskBuilder, handleSynthesizerResult). That's a new
+  capability, not a contract violation. Future meta-agents (a final-validator, an auditor)
+  will similarly need their own orchestration code.
+- Next: Day 22 — deadline + PARTIAL handling. Synthesizer today waits forever for all
+  specialists; Day 22 adds a per-incident deadline that forces synthesis with what's
+  available, marking the incident PARTIAL if a specialist timed out.
+
 ## Sprint 2 — Demo App & First Agents
 
 ### Day 20 (S2-D10) — Sprint 2 close
