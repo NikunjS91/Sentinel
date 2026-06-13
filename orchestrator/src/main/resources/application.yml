@@ -36,5 +36,10 @@ management:
     health:
       show-details: always
 
+sentinel:
+  incident:
+    default-deadline-seconds: 60
+    sweeper-interval-ms: 5000
+
 server:
   port: 8080

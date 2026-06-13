@@ -16,14 +16,16 @@ public class IncidentStateMachine {
     private static final Map<IncidentState, Set<IncidentState>> ALLOWED =
             new EnumMap<>(IncidentState.class);
     static {
-        ALLOWED.put(RECEIVED,    Set.of(CLASSIFIED, FAILED));
-        ALLOWED.put(CLASSIFIED,  Set.of(DISPATCHED, FAILED));
-        ALLOWED.put(DISPATCHED,  Set.of(AGGREGATING, FAILED));
-        ALLOWED.put(AGGREGATING, Set.of(SYNTHESIZED, PARTIAL, FAILED));
-        ALLOWED.put(PARTIAL,     Set.of(SYNTHESIZED, FAILED));
-        ALLOWED.put(SYNTHESIZED, Set.of(RESOLVED, FAILED));
-        ALLOWED.put(RESOLVED,    Set.of());
-        ALLOWED.put(FAILED,      Set.of());
+        ALLOWED.put(RECEIVED,            Set.of(CLASSIFIED, FAILED));
+        ALLOWED.put(CLASSIFIED,          Set.of(DISPATCHED, FAILED));
+        ALLOWED.put(DISPATCHED,          Set.of(AGGREGATING, AGGREGATING_PARTIAL, FAILED));
+        ALLOWED.put(AGGREGATING,         Set.of(SYNTHESIZED, FAILED));
+        ALLOWED.put(AGGREGATING_PARTIAL, Set.of(SYNTHESIZED_PARTIAL, FAILED));
+        ALLOWED.put(SYNTHESIZED,         Set.of(RESOLVED, FAILED));
+        ALLOWED.put(SYNTHESIZED_PARTIAL, Set.of(PARTIAL, FAILED));
+        ALLOWED.put(RESOLVED,            Set.of());
+        ALLOWED.put(PARTIAL,             Set.of());
+        ALLOWED.put(FAILED,              Set.of());
     }
 
     private final IncidentRepository incidents;

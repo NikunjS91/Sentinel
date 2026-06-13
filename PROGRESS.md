@@ -31,9 +31,38 @@
   (two-stage dispatch, SynthesizerTaskBuilder, handleSynthesizerResult). That's a new
   capability, not a contract violation. Future meta-agents (a final-validator, an auditor)
   will similarly need their own orchestration code.
-- Next: Day 22 — deadline + PARTIAL handling. Synthesizer today waits forever for all
-  specialists; Day 22 adds a per-incident deadline that forces synthesis with what's
-  available, marking the incident PARTIAL if a specialist timed out.
+- Next: Day 23 — UI / SSE stream.
+
+### Day 22 (S3-D2) — Deadline sweeper + PARTIAL terminal state
+- Done: `V3__deadline_index.sql` — partial index on `deadline_at` for sweeper query
+  (column already existed in V1; V3 is index-only).
+  `IncidentState` — added `AGGREGATING_PARTIAL` and `SYNTHESIZED_PARTIAL`; `PARTIAL` was
+  already in enum but with wrong transitions; `isTerminal()` now covers RESOLVED, PARTIAL,
+  and FAILED. Full ALLOWED map in `IncidentStateMachine` replaced (old had `PARTIAL →
+  SYNTHESIZED` and `AGGREGATING → PARTIAL` which are semantically wrong).
+  `IncidentDeadlineConfig` — `@ConfigurationProperties(prefix="sentinel.incident")` for
+  `default-deadline-seconds` (default 60); `application.yml` adds `sweeper-interval-ms`.
+  `Dispatcher.dispatch` — injects `IncidentDeadlineConfig`, sets `deadline_at` at dispatch
+  time (before saving incident).
+  `IncidentRepository.findOverdueActive` — JPQL query with `@Query` + `@Param` on state IN
+  (DISPATCHED, AGGREGATING) and `deadline_at <= :now`.
+  `DeadlineSweeper` — `@Scheduled(fixedDelayString)`, `@Transactional sweep()`;
+  `progressOverdue` acts only on DISPATCHED: transitions to AGGREGATING_PARTIAL, builds
+  payload via `SynthesizerTaskBuilder.buildPayload`, computes `missing_specialists` =
+  expectedAgents minus reported traces, adds `partial: true`, calls `dispatchSynthesizer`.
+  `AggregatorListener.handleSynthesizerResult` — branches on AGGREGATING (→ SYNTHESIZED →
+  RESOLVED) vs AGGREGATING_PARTIAL (→ SYNTHESIZED_PARTIAL → PARTIAL); both publish to
+  `incidents.synthesized`; unexpected state logs warn and returns.
+  `synthesizer.txt` — partial-input guidance section appended (missing agents → lower
+  confidence, name them in dissenting_notes, don't invent findings).
+  `synthesizer.py` — single fallback refactored into `_build_fallback(payload, agent_names)`
+  that distinguishes zero-findings (no-data summary, confidence 0.0, empty contributing)
+  from parse-failure (partial contributing agents preserved).
+  Tests: TC-3.2.1-3.2.4, 3.2.9 (Java — DeadlineSweeperTest + AggregatorIntegrationTest
+  TC-3.2.4 and TC-3.2.5); TC-3.2.6, TC-3.2.7 (Python — test_synthesizer_partial.py);
+  StateMachineUnitTest updated to cover AGGREGATING_PARTIAL, SYNTHESIZED_PARTIAL in
+  TC-1.5.3 and add PARTIAL to TC-1.5.4 terminal list.
+  Final: 50 Java tests + 42 Python tests (non-infra), all green. ruff + mypy strict clean.
 
 ## Sprint 2 — Demo App & First Agents
 

@@ -36,10 +36,13 @@ import java.util.UUID;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
+import org.springframework.test.context.TestPropertySource;
+
 import static org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDOM_PORT;
 
 @Testcontainers
 @SpringBootTest(webEnvironment = RANDOM_PORT)
+@TestPropertySource(properties = "sentinel.incident.sweeper-interval-ms=999999")
 class AggregatorIntegrationTest {
 
     @Container
@@ -367,6 +370,18 @@ class AggregatorIntegrationTest {
         }
     }
 
+    private Incident buildAggregatingPartialIncident() {
+        Incident inc = buildDispatchedIncident();
+        inc.setState(IncidentState.AGGREGATING_PARTIAL);
+        return incidentRepository.save(inc);
+    }
+
+    private Incident buildPartialIncident() {
+        Incident inc = buildDispatchedIncident();
+        inc.setState(IncidentState.PARTIAL);
+        return incidentRepository.save(inc);
+    }
+
     // TC-3.1.5: Synthesizer result drives the final report (not a specialist's output)
     @Test
     void tc_3_1_5_synthesizer_result_drives_report() throws Exception {
@@ -402,5 +417,54 @@ class AggregatorIntegrationTest {
         assertThat(report.getRecommendedAction()).isEqualTo("increase pool size to 50");
         assertThat(report.getConfidence()).isNotNull();
         assertThat(report.getConfidence().doubleValue()).isGreaterThan(0.9);
+    }
+
+    // TC-3.2.4: Synthesizer result on AGGREGATING_PARTIAL incident → state PARTIAL, report written
+    @Test
+    void tc_3_2_4_synthesizer_result_on_partial_path() throws Exception {
+        Incident inc = buildAggregatingPartialIncident();
+
+        String synthJson = objectMapper.writeValueAsString(Map.of(
+            "incidentId", inc.getId().toString(),
+            "agentName", "synthesizer",
+            "output", Map.of(
+                "summary", "Partial synthesis: only echo reported",
+                "root_cause", "unknown — specialists timed out",
+                "recommended_action", "manual investigation required",
+                "confidence", 0.3,
+                "dissenting_notes", List.of("missing specialist: log_analyzer", "missing specialist: metrics"),
+                "contributing_agents", List.of("echo")
+            ),
+            "tokensUsed", 150,
+            "latencyMs", 300,
+            "status", "ok"
+        ));
+
+        kafkaTemplate.send("agent.results", inc.getId().toString(), synthJson).get();
+
+        await().atMost(10, SECONDS).untilAsserted(() -> {
+            assertThat(incidentRepository.findById(inc.getId()).orElseThrow().getState())
+                .isEqualTo(IncidentState.PARTIAL);
+            assertThat(reportRepository.count()).isEqualTo(1);
+        });
+
+        var report = reportRepository.findAll().get(0);
+        assertThat(report.getSummary()).isEqualTo("Partial synthesis: only echo reported");
+    }
+
+    // TC-3.2.5: late specialist result on PARTIAL (terminal) incident → trace recorded, state unchanged
+    @Test
+    void tc_3_2_5_late_specialist_result_on_partial_is_noop() throws Exception {
+        Incident inc = buildPartialIncident();
+
+        kafkaTemplate.send("agent.results", inc.getId().toString(),
+            resultJson(inc.getId(), "log_analyzer", "ok")).get();
+
+        await().atMost(10, SECONDS).untilAsserted(() ->
+            assertThat(traceRepository.findByIncidentIdAndAgentName(inc.getId(), "log_analyzer")).isPresent()
+        );
+
+        assertThat(incidentRepository.findById(inc.getId()).orElseThrow().getState())
+            .isEqualTo(IncidentState.PARTIAL);
     }
 }

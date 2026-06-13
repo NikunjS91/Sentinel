@@ -92,15 +92,21 @@ public class AggregatorListener {
         }
     }
 
-    /** The Synthesizer reported. Write the real report and resolve the incident. */
+    /** The Synthesizer reported. Write the report and advance to RESOLVED or PARTIAL. */
     private void handleSynthesizerResult(Incident inc, AgentResult result) {
-        if (inc.getState() != IncidentState.AGGREGATING) {
-            // Trace already recorded; do not advance state (redelivery guard).
+        if (inc.getState() == IncidentState.AGGREGATING) {
+            reports.save(buildReportFromSynthesizer(inc, result));
+            stateMachine.transition(inc, IncidentState.SYNTHESIZED);
+            stateMachine.transition(inc, IncidentState.RESOLVED);
+        } else if (inc.getState() == IncidentState.AGGREGATING_PARTIAL) {
+            reports.save(buildReportFromSynthesizer(inc, result));
+            stateMachine.transition(inc, IncidentState.SYNTHESIZED_PARTIAL);
+            stateMachine.transition(inc, IncidentState.PARTIAL);
+        } else {
+            log.warn("Synthesizer result for incident {} arrived in unexpected state {}; trace recorded, ignoring.",
+                     inc.getId(), inc.getState());
             return;
         }
-        reports.save(buildReportFromSynthesizer(inc, result));
-        stateMachine.transition(inc, IncidentState.SYNTHESIZED);
-        stateMachine.transition(inc, IncidentState.RESOLVED);
 
         kafka.send(KafkaTopicConfig.INCIDENTS_SYNTHESIZED,
                    inc.getId().toString(),

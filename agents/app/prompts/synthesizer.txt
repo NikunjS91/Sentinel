@@ -38,6 +38,13 @@ or an empty list.
   "contributing_agents": ["<agent_name per specialist that informed this>"]
 }
 
+Partial-input guidance:
+- The input may include "missing_specialists" — agents that did not report before the deadline.
+- When specialists are missing, confidence must be LOWER than a complete run.
+- Name each missing specialist in dissenting_notes explicitly.
+- Do not invent findings for missing agents.
+- Zero specialist findings → confidence 0.0, summary indicating no diagnostic data available.
+
 --- INCIDENT ---
 {incident_context}
 
