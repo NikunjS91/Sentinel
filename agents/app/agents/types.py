@@ -23,3 +23,15 @@ class MetricsAgentFinding(BaseModel):
     anomalies: list[str] = Field(default_factory=list)
     most_likely_cause: str | None = None
     confidence: float = 0.0
+
+
+class SynthesizerFinding(BaseModel):
+    """The unified incident report the Synthesizer produces by combining
+    specialist findings."""
+
+    summary: str
+    root_cause: str | None = None
+    recommended_action: str | None = None
+    confidence: float = 0.0
+    dissenting_notes: list[str] = Field(default_factory=list)
+    contributing_agents: list[str] = Field(default_factory=list)

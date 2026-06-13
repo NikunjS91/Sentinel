@@ -8,6 +8,7 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Map;
 
 @Component
 public class Dispatcher {
@@ -44,6 +45,20 @@ public class Dispatcher {
                        incident.getId().toString(),
                        toJson(task));
         }
+    }
+
+    /** Dispatch the Synthesizer as a second-stage task after specialists complete.
+     *  Does NOT touch expected_agents — the aggregator resolves on AGGREGATING state. */
+    public void dispatchSynthesizer(Incident incident, Map<String, Object> payload) {
+        AgentTask task = new AgentTask(
+                incident.getId(),
+                "synthesizer",
+                incident.getSource(),
+                payload
+        );
+        kafka.send(KafkaTopicConfig.AGENT_TASKS,
+                   incident.getId().toString(),
+                   toJson(task));
     }
 
     private String toJson(AgentTask task) {

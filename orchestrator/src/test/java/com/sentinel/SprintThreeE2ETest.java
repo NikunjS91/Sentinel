@@ -7,13 +7,11 @@ import com.sentinel.aggregate.IncidentReportRepository;
 import com.sentinel.config.KafkaTopicConfig;
 import com.sentinel.incident.IncidentRepository;
 import com.sentinel.incident.IncidentState;
-import com.sentinel.ingest.IncidentDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -25,6 +23,7 @@ import org.testcontainers.kafka.KafkaContainer;
 import org.testcontainers.utility.DockerImageName;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -33,12 +32,14 @@ import static org.awaitility.Awaitility.await;
 import static org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDOM_PORT;
 
 /**
- * TC-1.10.1 — full Sprint-1 pipeline: POST alert → classify → dispatch →
- * canned AgentResult → aggregator → RESOLVED, one trace, one report.
+ * TC-3.1.6 — Sprint-3 four-trace e2e: POST alert → classify → dispatch →
+ * three specialist AgentResults → AGGREGATING → Synthesizer dispatched →
+ * Synthesizer AgentResult → RESOLVED, four traces, report from synthesizer,
+ * expected_agents unchanged at three.
  */
 @Testcontainers
 @SpringBootTest(webEnvironment = RANDOM_PORT)
-class SprintOneE2ETest {
+class SprintThreeE2ETest {
 
     @Container
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16");
@@ -68,90 +69,86 @@ class SprintOneE2ETest {
         jdbc.execute("TRUNCATE incidents CASCADE");
     }
 
-    // TC-1.10.1: full pipeline — alert in, incident RESOLVED out
+    // TC-3.1.6: four-trace flow ending in synthesized report
     @Test
-    void alert_flows_all_the_way_to_resolved() throws Exception {
+    void four_trace_flow_resolves_with_synthesizer_report() throws Exception {
         // 1. POST an alert.
         var alert = Map.of(
-            "source", "demo",
-            "service", "order-api",
-            "alertName", "HighErrorRate",
-            "fingerprint", "e2e-fp-001",
+            "source", "demo", "service", "demo-app",
+            "alertName", "S3E2ETest", "fingerprint", "s3-e2e-1",
             "severity", "critical",
-            "labels", Map.of("env", "prod"),
-            "annotations", Map.of()
-        );
-        var resp = http.postForEntity("/alerts", alert, IncidentDto.class);
-        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-        UUID id = resp.getBody().id();
+            "labels", Map.of(), "annotations", Map.of());
 
-        // 2. Wait for the classifier to advance to DISPATCHED.
+        var resp = http.postForEntity("/alerts", alert, Map.class);
+        assertThat(resp.getStatusCode().value()).isEqualTo(201);
+        UUID id = UUID.fromString((String) resp.getBody().get("id"));
+
+        // 2. Wait for specialists to be dispatched and expected_agents set.
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+            var inc = incidents.findById(id).orElseThrow();
+            assertThat(inc.getState()).isEqualTo(IncidentState.DISPATCHED);
+            assertThat(inc.getExpectedAgents())
+                .containsExactlyInAnyOrder("echo", "log_analyzer", "metrics");
+        });
+
+        // 3. Simulate three specialists reporting back.
+        for (String agent : List.of("metrics", "echo", "log_analyzer")) {
+            AgentResult result = new AgentResult(
+                id, agent,
+                Map.of("message", agent + " s3 e2e result"),
+                50, 200, "ok",
+                agent.equals("echo") ? null : "abc123");
+            kafka.send(KafkaTopicConfig.AGENT_RESULTS,
+                       id.toString(),
+                       json.writeValueAsString(result)).get();
+        }
+
+        // 4. Wait for aggregator to reach AGGREGATING (all specialists done,
+        //    Synthesizer dispatched).
         await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
             assertThat(incidents.findById(id).orElseThrow().getState())
-                .isEqualTo(IncidentState.DISPATCHED)
-        );
+                .isEqualTo(IncidentState.AGGREGATING));
 
-        // 3. Simulate the Python worker — publish canned AgentResults for all three agents.
-        // Sprint 2: dispatcher sends echo + log_analyzer + metrics; aggregator needs all three to resolve.
-        AgentResult echoResult = new AgentResult(
-            id, "echo",
-            Map.of("message", "Acknowledged incident for order-api."),
-            42, 100, "ok", null
-        );
-        AgentResult logResult = new AgentResult(
-            id, "log_analyzer",
-            Map.of("error_patterns", java.util.List.of(), "confidence", 0.1),
-            10, 50, "ok", "abc123def456"
-        );
-        AgentResult metricsResult = new AgentResult(
-            id, "metrics",
-            Map.of("slo_status", "ok", "anomalies", java.util.List.of(), "confidence", 0.1),
-            10, 50, "ok", "def456abc123"
-        );
-        kafka.send(KafkaTopicConfig.AGENT_RESULTS,
-                   id.toString(),
-                   json.writeValueAsString(echoResult)).get();
-        kafka.send(KafkaTopicConfig.AGENT_RESULTS,
-                   id.toString(),
-                   json.writeValueAsString(logResult)).get();
-        kafka.send(KafkaTopicConfig.AGENT_RESULTS,
-                   id.toString(),
-                   json.writeValueAsString(metricsResult)).get();
+        // 5. expected_agents must NOT include "synthesizer".
+        assertThat(incidents.findById(id).orElseThrow().getExpectedAgents())
+            .containsExactlyInAnyOrder("echo", "log_analyzer", "metrics");
 
-        // 4. Wait for AGGREGATING (all specialists done; Synthesizer dispatched).
-        await().atMost(Duration.ofSeconds(15)).untilAsserted(() ->
-            assertThat(incidents.findById(id).orElseThrow().getState())
-                .isEqualTo(IncidentState.AGGREGATING)
-        );
-
-        // 5. Simulate the Synthesizer result.
+        // 6. Simulate the Synthesizer reporting back.
         AgentResult synthResult = new AgentResult(
             id, "synthesizer",
             Map.of(
-                "summary", "stub synthesized report",
-                "root_cause", "unknown",
-                "recommended_action", "investigate",
-                "confidence", 0.5,
-                "dissenting_notes", java.util.List.of(),
-                "contributing_agents", java.util.List.of("echo", "log_analyzer", "metrics")
+                "summary", "Order-create latency exceeded SLO; likely slow DB query",
+                "root_cause", "slow DB query",
+                "recommended_action", "check slow query log; scale read replica",
+                "confidence", 0.85,
+                "dissenting_notes", List.of(
+                    "log_analyzer low confidence; metrics agent high confidence with concrete p95 evidence"
+                ),
+                "contributing_agents", List.of("echo", "log_analyzer", "metrics")
             ),
-            100, 300, "ok", "synth-v1"
-        );
+            150, 600, "ok", "synth-v1");
         kafka.send(KafkaTopicConfig.AGENT_RESULTS,
                    id.toString(),
                    json.writeValueAsString(synthResult)).get();
 
-        // 6. Wait for full resolution.
+        // 7. Wait for full resolution.
         await().atMost(Duration.ofSeconds(15)).untilAsserted(() ->
             assertThat(incidents.findById(id).orElseThrow().getState())
-                .isEqualTo(IncidentState.RESOLVED)
-        );
+                .isEqualTo(IncidentState.RESOLVED));
 
-        // 7. Four traces (3 specialists + synthesizer), one report from synthesizer.
+        // 8. Four traces: three specialists + synthesizer.
         assertThat(traces.findByIncidentIdAndAgentName(id, "echo")).isPresent();
         assertThat(traces.findByIncidentIdAndAgentName(id, "log_analyzer")).isPresent();
         assertThat(traces.findByIncidentIdAndAgentName(id, "metrics")).isPresent();
         assertThat(traces.findByIncidentIdAndAgentName(id, "synthesizer")).isPresent();
+
+        // 9. Report comes from the Synthesizer, not a specialist.
         assertThat(reports.count()).isEqualTo(1);
+        var report = reports.findAll().get(0);
+        assertThat(report.getSummary()).contains("latency exceeded SLO");
+        assertThat(report.getRootCause()).isEqualTo("slow DB query");
+        assertThat(report.getRecommendedAction()).contains("slow query log");
+        assertThat(report.getConfidence()).isNotNull();
+        assertThat(report.getConfidence().doubleValue()).isGreaterThan(0.8);
     }
 }

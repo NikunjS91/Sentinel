@@ -13,6 +13,7 @@ from ._context import AgentContext
 from .echo import echo_agent
 from .log_analyzer import log_analyzer
 from .metrics_agent import metrics_agent
+from .synthesizer import synthesizer
 
 # The uniform agent signature.
 AgentFn = Callable[[AgentTask, AgentContext], Awaitable[AgentResult]]
@@ -21,6 +22,7 @@ AGENTS: dict[str, AgentFn] = {
     "echo": echo_agent,
     "log_analyzer": log_analyzer,
     "metrics": metrics_agent,
+    "synthesizer": synthesizer,
 }
 
 
