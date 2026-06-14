@@ -64,14 +64,15 @@ class StateMachineUnitTest {
 
     // TC-1.5.3: FAILED is reachable from every non-terminal state
     @ParameterizedTest
-    @EnumSource(value = IncidentState.class, names = {"RECEIVED", "CLASSIFIED", "DISPATCHED", "AGGREGATING", "PARTIAL", "SYNTHESIZED"})
+    @EnumSource(value = IncidentState.class, names = {"RECEIVED", "CLASSIFIED", "DISPATCHED",
+        "AGGREGATING", "AGGREGATING_PARTIAL", "SYNTHESIZED", "SYNTHESIZED_PARTIAL"})
     void tc_1_5_3_failed_reachable_from_any_non_terminal(IncidentState from) {
         assertThat(sm.canTransition(from, FAILED)).isTrue();
     }
 
     // TC-1.5.4: terminal states reject all outgoing transitions
     @ParameterizedTest
-    @EnumSource(value = IncidentState.class, names = {"RESOLVED", "FAILED"})
+    @EnumSource(value = IncidentState.class, names = {"RESOLVED", "PARTIAL", "FAILED"})
     void tc_1_5_4_terminal_states_reject_all_transitions(IncidentState terminal) {
         Incident inc = incident(terminal);
 

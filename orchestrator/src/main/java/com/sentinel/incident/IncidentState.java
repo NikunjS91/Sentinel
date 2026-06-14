@@ -5,12 +5,14 @@ public enum IncidentState {
     CLASSIFIED,
     DISPATCHED,
     AGGREGATING,
-    PARTIAL,
+    AGGREGATING_PARTIAL,   // deadline fired; Synthesizer dispatched with partial data
     SYNTHESIZED,
+    SYNTHESIZED_PARTIAL,   // deadline-path Synthesizer result processed
     RESOLVED,
+    PARTIAL,               // terminal — incomplete but synthesized
     FAILED;
 
     public boolean isTerminal() {
-        return this == RESOLVED || this == FAILED;
+        return this == RESOLVED || this == PARTIAL || this == FAILED;
     }
 }

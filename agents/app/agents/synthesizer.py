@@ -17,6 +17,31 @@ from .types import SynthesizerFinding
 log = logging.getLogger(__name__)
 
 
+def _build_fallback(payload: dict[str, object], agent_names: list[str]) -> SynthesizerFinding:
+    raw_missing = payload.get("missing_specialists", [])
+    missing: list[str] = list(raw_missing) if isinstance(raw_missing, list) else []
+    raw_findings = payload.get("specialist_findings", [])
+    specialist_findings = raw_findings if isinstance(raw_findings, list) else []
+    if not specialist_findings:
+        notes = [f"missing specialist: {m}" for m in missing] or ["no specialists reported"]
+        return SynthesizerFinding(
+            summary="No specialist findings available within the deadline.",
+            root_cause=None,
+            recommended_action=None,
+            confidence=0.0,
+            dissenting_notes=notes,
+            contributing_agents=[],
+        )
+    return SynthesizerFinding(
+        summary="(synthesizer could not parse specialist findings)",
+        root_cause=None,
+        recommended_action=None,
+        confidence=0.0,
+        dissenting_notes=[f"missing specialist: {m}" for m in missing],
+        contributing_agents=agent_names,
+    )
+
+
 async def synthesizer(task: AgentTask, ctx: AgentContext) -> AgentResult:
     payload = task.payload or {}
     specialist_findings: list[object] = (
@@ -40,14 +65,7 @@ async def synthesizer(task: AgentTask, ctx: AgentContext) -> AgentResult:
         for f in specialist_findings
     ]
 
-    fallback = SynthesizerFinding(
-        summary="(synthesizer could not parse specialist findings)",
-        root_cause=None,
-        recommended_action=None,
-        confidence=0.0,
-        dissenting_notes=[],
-        contributing_agents=agent_names,
-    )
+    fallback = _build_fallback(payload if isinstance(payload, dict) else {}, agent_names)
 
     finding, stats = await call_with_retry(
         ctx.llm, rendered, SynthesizerFinding, fallback,
