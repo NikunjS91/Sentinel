@@ -2,6 +2,7 @@ package com.sentinel.ingest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sentinel.config.KafkaTopicConfig;
+import com.sentinel.events.IncidentEventPublisher;
 import com.sentinel.incident.AuditWriter;
 import com.sentinel.incident.Incident;
 import com.sentinel.incident.IncidentRepository;
@@ -11,6 +12,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -20,15 +23,18 @@ public class IngestService {
     private final KafkaTemplate<String, String> kafka;
     private final ObjectMapper json;
     private final AuditWriter audit;
+    private final IncidentEventPublisher events;
 
     public IngestService(IncidentRepository incidents,
                          KafkaTemplate<String, String> kafka,
                          ObjectMapper json,
-                         AuditWriter audit) {
+                         AuditWriter audit,
+                         IncidentEventPublisher events) {
         this.incidents = incidents;
         this.kafka = kafka;
         this.json = json;
         this.audit = audit;
+        this.events = events;
     }
 
     public record IngestResult(Incident incident, boolean created) {}
@@ -60,7 +66,23 @@ public class IngestService {
                    inc.getId().toString(),
                    inc.getId().toString());
 
+        events.publish(receivedEvent(inc));
+
         return new IngestResult(inc, true);
+    }
+
+    private Map<String, Object> receivedEvent(Incident inc) {
+        Map<String, Object> e = new LinkedHashMap<>();
+        e.put("type", "incident.state_changed");
+        e.put("ts", OffsetDateTime.now().toString());
+        e.put("incident_id", inc.getId().toString());
+        e.put("state", IncidentState.RECEIVED.name());
+        e.put("service", inc.getSource());
+        e.put("severity", inc.getSeverity());
+        e.put("alert_name", null);
+        e.put("expected_agents", inc.getExpectedAgents());
+        e.put("report", null);
+        return e;
     }
 
     private String toJson(AlertRequest req) {

@@ -1,5 +1,6 @@
 package com.sentinel;
 
+import com.sentinel.events.IncidentEventPublisher;
 import com.sentinel.incident.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,13 +19,15 @@ class StateMachineUnitTest {
 
     private IncidentRepository incidentRepository;
     private AuditWriter auditWriter;
+    private IncidentEventPublisher eventPublisher;
     private IncidentStateMachine sm;
 
     @BeforeEach
     void setUp() {
         incidentRepository = mock(IncidentRepository.class);
         auditWriter = mock(AuditWriter.class);
-        sm = new IncidentStateMachine(incidentRepository, auditWriter);
+        eventPublisher = mock(IncidentEventPublisher.class);
+        sm = new IncidentStateMachine(incidentRepository, auditWriter, eventPublisher);
     }
 
     private Incident incident(IncidentState state) {

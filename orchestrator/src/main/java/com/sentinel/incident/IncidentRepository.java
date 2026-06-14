@@ -16,4 +16,7 @@ public interface IncidentRepository extends JpaRepository<Incident, UUID> {
            "i.state IN (com.sentinel.incident.IncidentState.DISPATCHED, " +
            "com.sentinel.incident.IncidentState.AGGREGATING)")
     List<Incident> findOverdueActive(@Param("now") OffsetDateTime now);
+
+    @Query("SELECT i FROM Incident i ORDER BY i.createdAt DESC LIMIT :limit")
+    List<Incident> findRecent(@Param("limit") int limit);
 }

@@ -31,7 +31,35 @@
   (two-stage dispatch, SynthesizerTaskBuilder, handleSynthesizerResult). That's a new
   capability, not a contract violation. Future meta-agents (a final-validator, an auditor)
   will similarly need their own orchestration code.
-- Next: Day 23 — UI / SSE stream.
+- Next: Day 24 — human-in-the-loop.
+
+### Day 23 (S3-D3) — SSE & UI shell
+- Done: `IncidentEventPublisher` with `CopyOnWriteArrayList<SseEmitter>` (lock-free
+  broadcast, per-subscriber lifecycle hooks on completion/timeout/error);
+  `IncidentStreamController` at `GET /incidents/stream` with `@CrossOrigin` per-endpoint
+  to `localhost:5173`; `GET /incidents` (list, newest-first, configurable limit) and
+  `GET /incidents/{id}` (detail with report + traces) in `IncidentListController`;
+  `IncidentRepository.findRecent` JPQL query; `IncidentReportRepository.findByIncidentId`.
+  `IncidentStateMachine.transition` calls `events.publish(stateChangedEvent)` after every
+  state change — `incident.state_changed` for non-terminal, `incident.completed` (report:
+  null) for terminal. `AggregatorListener.handleSynthesizerResult` publishes a second
+  `incident.completed` with populated report (summary, root_cause, recommended_action,
+  confidence, dissenting_notes, contributing_agents from synthesizer trace output).
+  `IngestService.handle` publishes `incident.state_changed` for the initial RECEIVED state
+  so the UI shows the incident immediately on POST.
+  React app at `ui/` (Vite 7 + TS, zero extra dependencies): `types.ts`, `App.tsx`,
+  `useIncidentStream.ts`, `App.css`. Initial REST hydration + SSE merge preserves non-null
+  report when state_changed re-fires after completed. SSE merge deduplicates by
+  `incident_id`. Monospace dark theme. CI grows to 4 parallel jobs.
+  `contracts/sse-events-schema.md` documents wire format.
+  Tests: TC-3.3.1-3.3.6 (Java integration); UI tests deferred to Sprint 6.
+  Final: 56 Java tests (50 + 6 new), 42 Python tests, all green.
+- Architecture notes:
+  - Two events fire on terminal transitions (state machine's null-report, then aggregator's
+    populated-report). React merge keeps non-null. Sprint 5 may refactor.
+  - `alert_name` is null in events (Sprint 3 placeholder; Sprint 4 adds the field).
+  - No auth on endpoints. Sprint 6.
+  - UI testing deferred (needs stub server or recording infra).
 
 ### Day 22 (S3-D2) — Deadline sweeper + PARTIAL terminal state
 - Done: `V3__deadline_index.sql` — partial index on `deadline_at` for sweeper query

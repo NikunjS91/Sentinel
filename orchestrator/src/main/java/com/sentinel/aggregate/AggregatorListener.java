@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sentinel.config.KafkaTopicConfig;
 import com.sentinel.dispatch.Dispatcher;
 import com.sentinel.dispatch.SynthesizerTaskBuilder;
+import com.sentinel.events.IncidentEventPublisher;
 import com.sentinel.incident.AgentTrace;
 import com.sentinel.incident.Incident;
 import com.sentinel.incident.IncidentReport;
@@ -19,6 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -35,6 +38,7 @@ public class AggregatorListener {
     private final ObjectMapper json;
     private final Dispatcher dispatcher;
     private final SynthesizerTaskBuilder synthesizerTaskBuilder;
+    private final IncidentEventPublisher events;
 
     public AggregatorListener(IncidentRepository incidents,
                               AgentTraceRepository traces,
@@ -43,7 +47,8 @@ public class AggregatorListener {
                               KafkaTemplate<String, String> kafka,
                               ObjectMapper json,
                               Dispatcher dispatcher,
-                              SynthesizerTaskBuilder synthesizerTaskBuilder) {
+                              SynthesizerTaskBuilder synthesizerTaskBuilder,
+                              IncidentEventPublisher events) {
         this.incidents = incidents;
         this.traces = traces;
         this.reports = reports;
@@ -52,6 +57,7 @@ public class AggregatorListener {
         this.json = json;
         this.dispatcher = dispatcher;
         this.synthesizerTaskBuilder = synthesizerTaskBuilder;
+        this.events = events;
     }
 
     @KafkaListener(topics = KafkaTopicConfig.AGENT_RESULTS, groupId = "orchestrator")
@@ -60,7 +66,6 @@ public class AggregatorListener {
         AgentResult result = parseOrSkip(raw);
         if (result == null) return;
 
-        // Idempotency: same (incident, agent) arriving twice is a no-op.
         if (traces.findByIncidentIdAndAgentName(
                 result.incidentId(), result.agentName()).isPresent()) {
             return;
@@ -78,7 +83,6 @@ public class AggregatorListener {
         }
     }
 
-    /** A specialist reported. When all specialists are done, dispatch the Synthesizer. */
     private void handleSpecialistResult(Incident inc) {
         long specialistTraces = traces.countByIncidentIdAndAgentNameNot(inc.getId(), "synthesizer");
         int expectedCount = inc.getExpectedAgents().size();
@@ -92,25 +96,52 @@ public class AggregatorListener {
         }
     }
 
-    /** The Synthesizer reported. Write the report and advance to RESOLVED or PARTIAL. */
     private void handleSynthesizerResult(Incident inc, AgentResult result) {
         if (inc.getState() == IncidentState.AGGREGATING) {
-            reports.save(buildReportFromSynthesizer(inc, result));
+            IncidentReport report = buildReportFromSynthesizer(inc, result);
+            reports.save(report);
             stateMachine.transition(inc, IncidentState.SYNTHESIZED);
             stateMachine.transition(inc, IncidentState.RESOLVED);
+            kafka.send(KafkaTopicConfig.INCIDENTS_SYNTHESIZED,
+                       inc.getId().toString(),
+                       inc.getId().toString());
+            events.publish(completedEvent(inc, report, result));
         } else if (inc.getState() == IncidentState.AGGREGATING_PARTIAL) {
-            reports.save(buildReportFromSynthesizer(inc, result));
+            IncidentReport report = buildReportFromSynthesizer(inc, result);
+            reports.save(report);
             stateMachine.transition(inc, IncidentState.SYNTHESIZED_PARTIAL);
             stateMachine.transition(inc, IncidentState.PARTIAL);
+            kafka.send(KafkaTopicConfig.INCIDENTS_SYNTHESIZED,
+                       inc.getId().toString(),
+                       inc.getId().toString());
+            events.publish(completedEvent(inc, report, result));
         } else {
             log.warn("Synthesizer result for incident {} arrived in unexpected state {}; trace recorded, ignoring.",
                      inc.getId(), inc.getState());
-            return;
         }
+    }
 
-        kafka.send(KafkaTopicConfig.INCIDENTS_SYNTHESIZED,
-                   inc.getId().toString(),
-                   inc.getId().toString());
+    private Map<String, Object> completedEvent(Incident inc, IncidentReport report, AgentResult result) {
+        Map<String, Object> event = new LinkedHashMap<>();
+        event.put("type", "incident.completed");
+        event.put("ts", OffsetDateTime.now().toString());
+        event.put("incident_id", inc.getId().toString());
+        event.put("state", inc.getState().name());
+        event.put("service", inc.getSource());
+        event.put("severity", inc.getSeverity());
+        event.put("alert_name", null);
+        event.put("expected_agents", inc.getExpectedAgents());
+
+        Map<String, Object> out = result.output() == null ? Map.of() : result.output();
+        Map<String, Object> reportMap = new LinkedHashMap<>();
+        reportMap.put("summary", report.getSummary());
+        reportMap.put("root_cause", report.getRootCause());
+        reportMap.put("recommended_action", report.getRecommendedAction());
+        reportMap.put("confidence", report.getConfidence());
+        reportMap.put("dissenting_notes", out.getOrDefault("dissenting_notes", List.of()));
+        reportMap.put("contributing_agents", out.getOrDefault("contributing_agents", List.of()));
+        event.put("report", reportMap);
+        return event;
     }
 
     private AgentResult parseOrSkip(String raw) {
