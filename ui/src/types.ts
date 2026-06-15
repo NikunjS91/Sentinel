@@ -19,6 +19,8 @@ export interface IncidentListItem {
   service: string;
   severity: string;
   created_at: string;
+  human_decision: string | null;
+  human_decision_reason: string | null;
 }
 
 export interface IncidentEvent {
@@ -32,3 +34,13 @@ export interface IncidentEvent {
   expected_agents: string[];
   report: IncidentReport | null;
 }
+
+export interface HumanDecisionEvent {
+  type: 'incident.human_decision';
+  ts: string;
+  incident_id: string;
+  decision: 'ACCEPTED' | 'REJECTED' | 'EDITED';
+  reason: string | null;
+}
+
+export type SentinelEvent = IncidentEvent | HumanDecisionEvent;
