@@ -1,10 +1,12 @@
 package com.sentinel.incident;
 
+import com.sentinel.events.IncidentEventPublisher;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -30,10 +32,14 @@ public class IncidentStateMachine {
 
     private final IncidentRepository incidents;
     private final AuditWriter audit;
+    private final IncidentEventPublisher events;
 
-    public IncidentStateMachine(IncidentRepository incidents, AuditWriter audit) {
+    public IncidentStateMachine(IncidentRepository incidents,
+                                AuditWriter audit,
+                                IncidentEventPublisher events) {
         this.incidents = incidents;
         this.audit = audit;
+        this.events = events;
     }
 
     public boolean canTransition(IncidentState from, IncidentState to) {
@@ -55,5 +61,22 @@ public class IncidentStateMachine {
         audit.write(incident.getId(),
                     "STATE_" + current + "_TO_" + target,
                     "system");
+
+        events.publish(stateChangedEvent(incident));
+    }
+
+    public Map<String, Object> stateChangedEvent(Incident inc) {
+        boolean terminal = inc.getState().isTerminal();
+        Map<String, Object> e = new LinkedHashMap<>();
+        e.put("type", terminal ? "incident.completed" : "incident.state_changed");
+        e.put("ts", OffsetDateTime.now().toString());
+        e.put("incident_id", inc.getId().toString());
+        e.put("state", inc.getState().name());
+        e.put("service", inc.getSource());
+        e.put("severity", inc.getSeverity());
+        e.put("alert_name", null);
+        e.put("expected_agents", inc.getExpectedAgents());
+        e.put("report", null);
+        return e;
     }
 }

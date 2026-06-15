@@ -1,0 +1,23 @@
+* { box-sizing: border-box; }
+body { margin: 0; font-family: ui-monospace, monospace; background: #111; color: #eee; }
+.app { max-width: 900px; margin: 0 auto; padding: 24px; }
+header { display: flex; justify-content: space-between; align-items: center;
+         margin-bottom: 24px; padding-bottom: 12px; border-bottom: 1px solid #333; }
+h1 { margin: 0; }
+.conn-indicator { padding: 4px 10px; border-radius: 4px; font-size: 0.8rem; }
+.conn-indicator.on { background: #1f4d2b; color: #8ce19f; }
+.conn-indicator.off { background: #4d1f1f; color: #e18c8c; }
+.empty { color: #777; }
+.incident { padding: 12px; margin-bottom: 8px; background: #1a1a1a;
+            border-left: 3px solid #444; cursor: pointer; }
+.incident.selected { border-left-color: #5b8def; }
+.incident:hover { background: #1f1f1f; }
+.row { display: flex; align-items: center; gap: 12px; }
+.state-pill { padding: 2px 8px; border-radius: 3px; color: white; font-size: 0.8rem; }
+.service { font-weight: bold; }
+.severity { color: #aaa; font-size: 0.85rem; }
+.time { margin-left: auto; color: #777; font-size: 0.85rem; }
+.summary { margin: 8px 0 0; color: #ccc; }
+.detail { margin-top: 12px; padding-top: 12px; border-top: 1px solid #333; }
+.detail p { margin: 6px 0; }
+.detail ul { margin: 6px 0; padding-left: 20px; }
