@@ -14,11 +14,16 @@ public class AuditWriter {
     }
 
     public void write(UUID incidentId, String eventType, String actor) {
+        record(incidentId, eventType, actor, null);
+    }
+
+    public void record(UUID incidentId, String eventType, String actor, String detail) {
         AuditLogEntry entry = new AuditLogEntry();
         entry.setId(UUID.randomUUID());
         entry.setIncidentId(incidentId);
         entry.setEventType(eventType);
         entry.setActor(actor);
+        entry.setDetail(detail);
         entry.setCreatedAt(OffsetDateTime.now());
         repo.save(entry);
     }

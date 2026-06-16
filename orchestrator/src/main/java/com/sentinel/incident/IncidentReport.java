@@ -29,6 +29,21 @@ public class IncidentReport {
     @Column(name = "human_decision")
     private String humanDecision;
 
+    @Column(name = "human_decision_reason")
+    private String humanDecisionReason;
+
+    @Column(name = "human_decided_at")
+    private OffsetDateTime humanDecidedAt;
+
+    @Column(name = "edited_summary")
+    private String editedSummary;
+
+    @Column(name = "edited_root_cause")
+    private String editedRootCause;
+
+    @Column(name = "edited_recommended_action")
+    private String editedRecommendedAction;
+
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 
@@ -54,6 +69,21 @@ public class IncidentReport {
 
     public String getHumanDecision() { return humanDecision; }
     public void setHumanDecision(String humanDecision) { this.humanDecision = humanDecision; }
+
+    public String getHumanDecisionReason() { return humanDecisionReason; }
+    public void setHumanDecisionReason(String humanDecisionReason) { this.humanDecisionReason = humanDecisionReason; }
+
+    public OffsetDateTime getHumanDecidedAt() { return humanDecidedAt; }
+    public void setHumanDecidedAt(OffsetDateTime humanDecidedAt) { this.humanDecidedAt = humanDecidedAt; }
+
+    public String getEditedSummary() { return editedSummary; }
+    public void setEditedSummary(String editedSummary) { this.editedSummary = editedSummary; }
+
+    public String getEditedRootCause() { return editedRootCause; }
+    public void setEditedRootCause(String editedRootCause) { this.editedRootCause = editedRootCause; }
+
+    public String getEditedRecommendedAction() { return editedRecommendedAction; }
+    public void setEditedRecommendedAction(String editedRecommendedAction) { this.editedRecommendedAction = editedRecommendedAction; }
 
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(OffsetDateTime createdAt) { this.createdAt = createdAt; }

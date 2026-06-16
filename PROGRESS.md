@@ -2,6 +2,45 @@
 
 ## Sprint 3 — Synthesis, Deadlines, UI
 
+### Day 24 (S3-D4) — Human-in-the-loop accept / reject / edit
+- Done: `V4__human_decision_columns.sql` — adds `human_decision_reason`, `human_decided_at`,
+  `edited_summary`, `edited_root_cause`, `edited_recommended_action` to `incident_reports`;
+  partial index on `human_decision` for non-null rows.
+  `IncidentReport` entity — 5 new fields + getters/setters; AI originals (`summary`,
+  `root_cause`, `recommended_action`) never overwritten on edit, preserving labeled training
+  data for Sprint 5 eval harness.
+  `AuditWriter.record(UUID, String, String, String detail)` — new overload with JSONB detail;
+  existing `write()` delegates to it with null detail (no callers changed).
+  `com.sentinel.humanloop` package:
+  - `HumanDecisionRequests` — `AcceptRequest`, `RejectRequest(reason)`, `EditRequest(summary,
+    rootCause, recommendedAction)` inner records.
+  - `ReportNotFoundException` — `@ResponseStatus(404)`.
+  - `AlreadyDecidedException` — `@ResponseStatus(409)`.
+  - `HumanDecisionService` — `@Transactional` `accept()`, `reject()`, `edit()` methods;
+    `findAndGuard()` raises 404 if no report, 409 if already decided;
+    publishes `incident.human_decision` SSE event on every decision;
+    audit-logs `HUMAN_ACCEPTED`, `HUMAN_REJECTED`, `HUMAN_EDITED` with JSONB detail.
+  - `HumanDecisionController` — `POST /incidents/{id}/accept` (204),
+    `POST /incidents/{id}/reject` (204), `PATCH /incidents/{id}/report` (204); all CORS-gated.
+  `IncidentListController.toListItem` — adds `human_decision` and `human_decision_reason`
+  from report lookup (null-safe).
+  `pom.xml` — `httpclient5` test dependency so `TestRestTemplate` supports PATCH.
+  UI: `types.ts` adds `HumanDecisionEvent` + `SentinelEvent` union; `IncidentListItem` gains
+  `human_decision`/`human_decision_reason`. `useIncidentStream` exports `IncidentWithReport`,
+  handles `incident.human_decision` SSE event via `mergeDecisionEvent`. `App.tsx` —
+  `IncidentDetail` shows decision banner (✓/✗/✎) when decided; shows Accept/Reject/Edit
+  action buttons when terminal + undecided; reject uses `window.prompt`; edit shows inline
+  form writing to `edited_*` columns; error display on non-OK response. `App.css` — new
+  `.actions`, `.edit-form`, `.decision-banner`, `.error`, `.decision-chip` rules.
+  Tests: TC-3.4.1 (accept 204 + fields set), TC-3.4.2 (reject 204 + reason stored),
+  TC-3.4.3 (edit 204 + edited_* columns set), TC-3.4.4 (double-accept → 409),
+  TC-3.4.5 (accept then reject → 409), TC-3.4.6 (accept no-report → 404),
+  TC-3.4.7 (edit verifies AI originals preserved + edited_* columns set — labeled data guard).
+  Final: 63 Java tests (56 + 7 new), 42 Python tests (unchanged), all green on CI (Java 21).
+  `StateMachineUnitTest` fails locally on Java 26 (pre-existing Mockito JVM restriction;
+  passes on CI Java 21).
+- Next: Day 25 — Sprint 3 close + topology/history/runbook agents (Sprint 4).
+
 ### Day 21 (S3-D1) — Synthesizer agent + two-stage dispatch
 - Done: `SynthesizerFinding` typed model (summary, root_cause, recommended_action,
   confidence, dissenting_notes, contributing_agents) added to `agents/app/agents/types.py`.

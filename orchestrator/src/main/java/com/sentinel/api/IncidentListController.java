@@ -61,6 +61,9 @@ public class IncidentListController {
         m.put("service", inc.getSource());
         m.put("severity", inc.getSeverity());
         m.put("created_at", inc.getCreatedAt().toString());
+        IncidentReport report = reports.findByIncidentId(inc.getId()).orElse(null);
+        m.put("human_decision", report != null ? report.getHumanDecision() : null);
+        m.put("human_decision_reason", report != null ? report.getHumanDecisionReason() : null);
         return m;
     }
 
