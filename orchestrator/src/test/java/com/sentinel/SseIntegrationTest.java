@@ -179,23 +179,27 @@ class SseIntegrationTest {
         assertThat(report.getSummary()).isEqualTo("Partial: only echo reported");
     }
 
-    // TC-3.3.4: GET /incidents returns recent incidents
+    // TC-3.3.4: GET /incidents returns recent incidents (response shape: {items, nextBefore})
     @Test
     void tc_3_3_4_get_incidents_returns_recent() {
         Incident inc1 = buildDispatchedIncident();
         Incident inc2 = buildDispatchedIncident();
         Incident inc3 = buildDispatchedIncident();
 
-        @SuppressWarnings("unchecked")
-        ResponseEntity<List> resp = http.getForEntity("/incidents?limit=10", List.class);
+        ResponseEntity<Map> resp = http.getForEntity("/incidents?limit=10", Map.class);
 
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
-        List<?> body = resp.getBody();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> body = (Map<String, Object>) resp.getBody();
         assertThat(body).isNotNull();
-        assertThat(body.size()).isGreaterThanOrEqualTo(3);
+        assertThat(body).containsKey("items");
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> first = (Map<String, Object>) body.get(0);
+        List<Map<String, Object>> items = (List<Map<String, Object>>) body.get("items");
+        assertThat(items).isNotNull();
+        assertThat(items.size()).isGreaterThanOrEqualTo(3);
+
+        Map<String, Object> first = items.get(0);
         assertThat(first).containsKeys("incident_id", "state", "service", "severity", "created_at");
         // Most recent first.
         assertThat(first.get("incident_id").toString())

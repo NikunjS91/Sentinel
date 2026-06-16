@@ -23,6 +23,20 @@ export interface IncidentListItem {
   human_decision_reason: string | null;
 }
 
+export interface ListResponse {
+  items: IncidentListItem[];
+  nextBefore: string | null;
+}
+
+export interface Filter {
+  state: string[];
+  service: string | null;
+  decision: 'all' | 'undecided' | 'accepted' | 'rejected' | 'edited';
+  q: string;
+}
+
+export const EMPTY_FILTER: Filter = { state: [], service: null, decision: 'all', q: '' };
+
 export interface IncidentEvent {
   type: 'incident.state_changed' | 'incident.completed';
   ts: string;

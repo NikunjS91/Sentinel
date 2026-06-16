@@ -2,6 +2,39 @@
 
 ## Sprint 3 — Synthesis, Deadlines, UI
 
+### Day 25 (S3-D5) — Filters & search
+- Done: `GET /incidents` now accepts `state` (comma list), `service`, `decision`
+  (undecided/accepted/rejected/edited), `q` (case-insensitive free-text across
+  summary/root_cause/recommended_action), `limit` (1-100), and `before` (cursor).
+  Response shape changed from `List<Map>` to `ListResponse{items, nextBefore}`.
+  `IncidentSpecifications` builds the dynamic JPA Criteria predicate with AND semantics;
+  LEFT JOIN to `incident_reports` for decision/q — active incidents (no report yet) still
+  appear in state filters. `@OneToOne(mappedBy="incident")` added to Incident; matching
+  read-only `@OneToOne @JoinColumn(insertable=false, updatable=false)` on IncidentReport —
+  existing UUID field (`incidentId`) untouched. `IncidentRepository` extends
+  `JpaSpecificationExecutor<Incident>`. `IncidentListController` uses `PageRequest + findAll`
+  for cursor-based pagination; `IllegalArgumentException` → 400 via `@ExceptionHandler`.
+  `decision=undecided` uses `isNull(humanDecision)` — covers both no-report (LEFT JOIN null)
+  and report-without-decision. `decision` filter values uppercased before DB comparison
+  (DB stores ACCEPTED/REJECTED/EDITED). Invalid `state` name → 400 via `parseStateOrThrow`.
+  UI: `FilterBar` component (state/service/decision selects + search input + Clear button);
+  `services` derived via `useMemo` from loaded incidents. URL sync via `replaceState` on
+  filter change; hydrated from `window.location.search` on mount. SSE merge stays permissive
+  — state/service checked at event level, decision/q deferred to REST refresh. `useEffect`
+  re-subscribes SSE on filter change so `matchesFilter` sees current filter. "Load older"
+  button appends next page using `nextBefore` cursor; disappears when `nextBefore` is null.
+  `contracts/incident-list-api.md` documents wire format. TC-3.3.4 updated to new response
+  shape (`{items, nextBefore}`).
+- Tests: TC-3.5.1-3.5.8 (8 new Java integration tests); TC-3.3.4 updated. All 71 tests
+  pass on CI (Java 21).
+- Architecture notes:
+  - Incident entity uses `source` not `service`; Specifications uses `root.get("source")`.
+  - LEFT JOIN mandatory — `JoinType.INNER` silently drops active incidents.
+  - Cursor pagination one-way (newest→older); Sprint 6 may add two-way if needed.
+  - Permissive SSE merge — accepts events that might match; next REST refresh corrects.
+  - No router library; URL synced manually via `replaceState`.
+- Next: Day 26 — Sprint 3 close.
+
 ### Day 24 (S3-D4) — Human-in-the-loop accept / reject / edit
 - Done: `V4__human_decision_columns.sql` — adds `human_decision_reason`, `human_decided_at`,
   `edited_summary`, `edited_root_cause`, `edited_recommended_action` to `incident_reports`;

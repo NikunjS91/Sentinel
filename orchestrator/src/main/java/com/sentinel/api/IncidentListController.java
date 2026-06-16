@@ -6,12 +6,18 @@ import com.sentinel.incident.AgentTrace;
 import com.sentinel.incident.Incident;
 import com.sentinel.incident.IncidentReport;
 import com.sentinel.incident.IncidentRepository;
+import com.sentinel.incident.IncidentSpecifications;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +25,9 @@ import java.util.UUID;
 
 @RestController
 public class IncidentListController {
+
+    private static final List<String> VALID_DECISIONS =
+        List.of("undecided", "accepted", "rejected", "edited");
 
     private final IncidentRepository incidents;
     private final IncidentReportRepository reports;
@@ -34,10 +43,36 @@ public class IncidentListController {
 
     @CrossOrigin(origins = "${sentinel.ui.cors-origin:http://localhost:5173}")
     @GetMapping("/incidents")
-    public List<Map<String, Object>> list(@RequestParam(defaultValue = "20") int limit) {
-        return incidents.findRecent(limit).stream()
-            .map(this::toListItem)
-            .toList();
+    public ListResponse list(
+            @RequestParam(name = "state", required = false) List<String> state,
+            @RequestParam(name = "service", required = false) String service,
+            @RequestParam(name = "decision", required = false) String decision,
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "limit", required = false) Integer limit,
+            @RequestParam(name = "before", required = false) OffsetDateTime before) {
+
+        if (decision != null && !VALID_DECISIONS.contains(decision)) {
+            throw new IllegalArgumentException(
+                "decision must be one of: undecided, accepted, rejected, edited");
+        }
+        if (limit != null && (limit < 1 || limit > 100)) {
+            throw new IllegalArgumentException("limit must be between 1 and 100");
+        }
+
+        IncidentFilter filter = new IncidentFilter(state, service, decision, q, limit, before);
+        PageRequest page = PageRequest.of(0, filter.limit());
+        List<Incident> rows = incidents
+            .findAll(IncidentSpecifications.matching(filter), page)
+            .getContent();
+
+        List<Map<String, Object>> items = rows.stream().map(this::toListItem).toList();
+
+        String nextBefore = null;
+        if (rows.size() == filter.limit()) {
+            nextBefore = rows.get(rows.size() - 1).getCreatedAt().toString();
+        }
+
+        return new ListResponse(items, nextBefore);
     }
 
     @CrossOrigin(origins = "${sentinel.ui.cors-origin:http://localhost:5173}")
@@ -53,6 +88,14 @@ public class IncidentListController {
         out.put("traces", incidentTraces.stream().map(this::traceMap).toList());
         return out;
     }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Map<String, String> handleBadRequest(IllegalArgumentException ex) {
+        return Map.of("error", ex.getMessage());
+    }
+
+    public record ListResponse(List<Map<String, Object>> items, String nextBefore) {}
 
     private Map<String, Object> toListItem(Incident inc) {
         Map<String, Object> m = new LinkedHashMap<>();
@@ -73,7 +116,6 @@ public class IncidentListController {
         m.put("root_cause", r.getRootCause());
         m.put("recommended_action", r.getRecommendedAction());
         m.put("confidence", r.getConfidence());
-        // dissenting_notes and contributing_agents come from the synthesizer trace
         AgentTrace synthTrace = incidentTraces.stream()
             .filter(t -> "synthesizer".equals(t.getAgentName()))
             .findFirst()

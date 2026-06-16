@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react';
-import type { IncidentListItem, IncidentEvent, HumanDecisionEvent, IncidentReport } from './types';
+import type {
+  IncidentListItem, IncidentEvent, HumanDecisionEvent,
+  IncidentReport, ListResponse, Filter,
+} from './types';
+import { EMPTY_FILTER } from './types';
 
 const API = import.meta.env.VITE_API ?? 'http://localhost:8080';
 
@@ -9,20 +13,33 @@ export interface IncidentWithReport extends IncidentListItem {
 
 export function useIncidentStream() {
   const [incidents, setIncidents] = useState<IncidentWithReport[]>([]);
+  const [filter, setFilter] = useState<Filter>(EMPTY_FILTER);
+  const [nextBefore, setNextBefore] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const [connected, setConnected] = useState(false);
 
+  // Re-fetch whenever the filter changes.
   useEffect(() => {
-    fetch(`${API}/incidents?limit=50`)
-      .then(r => r.json())
-      .then((data: IncidentListItem[]) => setIncidents(data))
-      .catch(err => console.error('initial fetch failed', err));
+    setLoading(true);
+    fetch(buildUrl(filter, null))
+      .then(r => r.json() as Promise<ListResponse>)
+      .then(data => {
+        setIncidents(data.items);
+        setNextBefore(data.nextBefore);
+      })
+      .catch(err => console.error('fetch failed', err))
+      .finally(() => setLoading(false));
+  }, [filter]);
 
+  // SSE subscription — re-subscribe when filter changes for matchesFilter.
+  useEffect(() => {
     const sse = new EventSource(`${API}/incidents/stream`);
     sse.onopen = () => setConnected(true);
     sse.onerror = () => setConnected(false);
 
     const onStateEvent = (msg: MessageEvent) => {
       const event: IncidentEvent = JSON.parse(msg.data as string);
+      if (!matchesFilter(event, filter)) return;
       setIncidents(prev => mergeStateEvent(prev, event));
     };
     sse.addEventListener('incident.state_changed', onStateEvent);
@@ -35,9 +52,39 @@ export function useIncidentStream() {
     sse.addEventListener('incident.human_decision', onDecisionEvent);
 
     return () => sse.close();
-  }, []);
+  }, [filter]);
 
-  return { incidents, connected };
+  const loadOlder = () => {
+    if (!nextBefore) return;
+    setLoading(true);
+    fetch(buildUrl(filter, nextBefore))
+      .then(r => r.json() as Promise<ListResponse>)
+      .then(data => {
+        setIncidents(prev => [...prev, ...data.items]);
+        setNextBefore(data.nextBefore);
+      })
+      .catch(err => console.error('loadOlder failed', err))
+      .finally(() => setLoading(false));
+  };
+
+  return { incidents, filter, setFilter, nextBefore, loadOlder, loading, connected };
+}
+
+export function buildUrl(filter: Filter, before: string | null): string {
+  const p = new URLSearchParams();
+  p.set('limit', '20');
+  if (filter.state.length > 0) p.set('state', filter.state.join(','));
+  if (filter.service) p.set('service', filter.service);
+  if (filter.decision !== 'all') p.set('decision', filter.decision);
+  if (filter.q.trim()) p.set('q', filter.q.trim());
+  if (before) p.set('before', before);
+  return `${API}/incidents?${p.toString()}`;
+}
+
+function matchesFilter(event: IncidentEvent, filter: Filter): boolean {
+  if (filter.state.length > 0 && !filter.state.includes(event.state)) return false;
+  if (filter.service && event.service !== filter.service) return false;
+  return true;
 }
 
 function mergeStateEvent(
