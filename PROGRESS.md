@@ -2,6 +2,37 @@
 
 ## Sprint 3 — Synthesis, Deadlines, UI
 
+### Day 26 (S3-D6) — Sprint 3 close
+- Done: `SprintThreeE2ETest` extended with TC-3.6.1 (full pipeline: alert → three
+  specialists → Synthesizer → RESOLVED → human accepts; asserts 204 NO_CONTENT, ACCEPTED
+  stored uppercase, HUMAN_ACCEPTED in audit log) and TC-3.6.2 (deadline path: incident
+  written directly in DISPATCHED with past deadline → one specialist reports → sweeper
+  fires → AGGREGATING_PARTIAL → Synthesizer → PARTIAL → human rejects; asserts REJECTED
+  + reason persisted). `AuditLogRepository.findByIncidentId(UUID)` added.
+  Demo artifact: `docs/demos/SPRINT-3-HUMAN-IN-LOOP.md` — 8-beat demo script with
+  commands for triggering real incident, watching live SSE, expanding incident detail,
+  editing recommended action, showing labeled data, demonstrating filter bookmarkability.
+  README refreshed: Sprint-3 status, Synthesizer ✅, 4-plane architecture description,
+  getting-started includes UI step (Node 18+), design principles updated (graceful
+  degradation ✅ Sprint 3), What's built table updated with all Sprint-3 components,
+  test counts ~73+42+8. Sprint-3 retrospective: `docs/retrospectives/SPRINT-03.md`.
+- Tests: 73 Java (all non-StateMachineUnitTest pass; StateMachineUnitTest is pre-existing
+  Java-26/Mockito gap — passes on CI with Java 21), 42 Python, 8 demo-app.
+- Architecture notes:
+  - TC-3.6.2 builds Incident directly in DISPATCHED with past deadline, bypassing
+    natural dispatch. Sweeper picks it up within 5s. Sprint 4 should use a Spring
+    test profile with short deadline instead.
+  - `humanDecision` values stored uppercase (ACCEPTED/REJECTED/EDITED) in DB; tests
+    assert uppercase.
+  - `HumanDecisionController.accept()` returns 204 NO_CONTENT (spec said 200 — corrected).
+  - `Map.of()` rejects null; TC-3.6.2 uses `""` for empty `root_cause` in synthesizer result.
+- Sprint 3 final score: Synthesizer + deadlines + PARTIAL + live UI + human-in-the-loop
+  + filters. Architecture: 4 planes (orchestrator, agents, dashboard, demo-app),
+  8 Compose services, ~123 tests across two languages + UI build gate.
+- Next: Sprint 4 — Topology + History (pgvector) + Runbook agents. Each a two-edit
+  addition per the Day-19 contract. Open decision: shared knowledge-base infrastructure
+  day first, or build incrementally.
+
 ### Day 25 (S3-D5) — Filters & search
 - Done: `GET /incidents` now accepts `state` (comma list), `service`, `decision`
   (undecided/accepted/rejected/edited), `q` (case-insensitive free-text across
