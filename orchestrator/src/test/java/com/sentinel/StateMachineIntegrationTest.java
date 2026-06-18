@@ -27,7 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class StateMachineIntegrationTest {
 
     @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16");
+    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("pgvector/pgvector:pg16");
 
     @Container
     static KafkaContainer kafka =

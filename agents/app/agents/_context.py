@@ -7,8 +7,9 @@ in Sprint 4) without changing the worker's call site."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
+from ..embedding.base import EmbeddingClient
 from ..llm.base import LLMClient
 from ..prompt_registry import PromptRegistry
 
@@ -17,3 +18,4 @@ from ..prompt_registry import PromptRegistry
 class AgentContext:
     llm: LLMClient
     prompts: PromptRegistry
+    embedder: EmbeddingClient | None = field(default=None)

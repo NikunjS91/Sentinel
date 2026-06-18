@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from .agents._context import AgentContext
 from .agents._registry import AGENTS
+from .embedding.base import EmbeddingClient
 from .llm.base import LLMClient
 from .llm.factory import make_llm_client
 from .models import AgentResult, AgentTask
@@ -27,6 +28,7 @@ class KafkaWorker:
         self._producer: AIOKafkaProducer | None = None
         self._task: asyncio.Task[None] | None = None
         self.prompt_registry: PromptRegistry | None = None
+        self.embedder: EmbeddingClient | None = None
 
     async def start(self) -> None:
         self._consumer = AIOKafkaConsumer(
@@ -79,7 +81,7 @@ class KafkaWorker:
                 "worker has no prompt_registry — lifespan wiring is broken"
             )
 
-        ctx = AgentContext(llm=self._llm, prompts=self.prompt_registry)
+        ctx = AgentContext(llm=self._llm, prompts=self.prompt_registry, embedder=self.embedder)
         agent_fn = AGENTS.get(task.agent_name)
 
         if agent_fn is None:
