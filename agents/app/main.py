@@ -6,6 +6,7 @@ from typing import cast
 from fastapi import FastAPI
 
 from .db import upsert_prompt_versions
+from .embedding.backfill_task import EmbeddingBackfillTask
 from .embedding.factory import make_embedding_client
 from .prompt_registry import PromptRegistry
 from .settings import settings
@@ -26,9 +27,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     worker.embedder = embedder
     await worker.start()
     app.state.worker = worker
+
+    backfill = EmbeddingBackfillTask(interval_s=30.0)
+    await backfill.start()
+    app.state.backfill = backfill
+
     try:
         yield
     finally:
+        await backfill.stop()
         await worker.stop()
 
 

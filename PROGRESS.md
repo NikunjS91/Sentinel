@@ -2,6 +2,25 @@
 
 ## Sprint 4 — Knowledge Base, History, Topology, Runbook
 
+### Day 28 (S4-D2) — History agent + KB write-back
+- Done: `history` agent vector-similarity search against past incidents. Registered with
+  Day-19 contract (exactly 2 edits: `AGENTS` dict in `_registry.py` + `ClassifierListener`
+  dispatcher list now `List.of("echo","log_analyzer","metrics","history")`). Agent embeds
+  the current incident's query text via `ctx.embedder`, POSTs to `/kb/search` (5 s timeout),
+  renders `history.txt` prompt with `.replace()` (not `.format()` — JSON schema has literal
+  braces), calls LLM, and post-guards empty `matched_incidents` from the LLM by repopulating
+  from KB candidates. `HistoryFinding` + `MatchedIncident` types added to `agents/types.py`.
+  `EmbeddingBackfillTask` asyncio periodic task (30 s interval) polls `kb_documents` for NULL
+  embeddings and fills them in via asyncpg; wired into FastAPI lifespan. `KbWriter` (Java)
+  inserts resolved incidents as `past_incident` rows in `kb_documents` — wrapped in try/catch
+  (KB write failure is non-fatal); called ONLY in `AGGREGATING → RESOLVED` branch, NOT in
+  the `AGGREGATING_PARTIAL → PARTIAL` branch. `AggregatorListener` constructor-injected with
+  `KbWriter`. All 6 full-pipeline Java tests updated to dispatch and receive 4 specialists
+  (echo, log_analyzer, metrics, history). `orchestrator_url` added to `agents/settings.py`.
+- Tests: 4 new Java (TC-4.2.6: KB write on RESOLVED; TC-4.2.7: no KB write on PARTIAL;
+  all via Testcontainers). 5 new Python (TC-4.2.1–4.2.4 pass; TC-4.2.5 skip-guarded —
+  requires DATABASE_URL). Prompt registry test updated for 4th prompt. All green.
+
 ### Day 27 (S4-D1) — Knowledge-base infrastructure
 - Done: Shared data layer for the three new Sprint-4 agents (History, Topology, Runbook).
   V5 Flyway migration: `CREATE EXTENSION IF NOT EXISTS vector`, `knowledge_base` schema,

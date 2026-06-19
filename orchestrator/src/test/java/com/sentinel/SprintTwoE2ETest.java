@@ -87,12 +87,12 @@ class SprintTwoE2ETest {
             var inc = incidents.findById(id).orElseThrow();
             assertThat(inc.getState()).isEqualTo(IncidentState.DISPATCHED);
             assertThat(inc.getExpectedAgents())
-                .containsExactlyInAnyOrder("echo", "log_analyzer", "metrics");
+                .containsExactlyInAnyOrder("echo", "log_analyzer", "metrics", "history");
         });
 
-        // 3. Simulate three specialists reporting back, in non-canonical order.
+        // 3. Simulate four specialists reporting back, in non-canonical order.
         //    Deliberate: aggregator must be order-independent.
-        for (String agent : List.of("metrics", "echo", "log_analyzer")) {
+        for (String agent : List.of("metrics", "echo", "log_analyzer", "history")) {
             AgentResult result = new AgentResult(
                 id, agent,
                 Map.of("message", agent + " stub e2e result"),
@@ -129,10 +129,11 @@ class SprintTwoE2ETest {
             assertThat(incidents.findById(id).orElseThrow().getState())
                 .isEqualTo(IncidentState.RESOLVED));
 
-        // 7. Four traces (3 specialists + synthesizer), one report from synthesizer.
+        // 7. Five traces (4 specialists + synthesizer), one report from synthesizer.
         assertThat(traces.findByIncidentIdAndAgentName(id, "echo")).isPresent();
         assertThat(traces.findByIncidentIdAndAgentName(id, "log_analyzer")).isPresent();
         assertThat(traces.findByIncidentIdAndAgentName(id, "metrics")).isPresent();
+        assertThat(traces.findByIncidentIdAndAgentName(id, "history")).isPresent();
         assertThat(traces.findByIncidentIdAndAgentName(id, "synthesizer")).isPresent();
         assertThat(reports.count()).isEqualTo(1);
     }

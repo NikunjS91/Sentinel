@@ -44,5 +44,8 @@ class Settings(BaseSettings):
     # Embeddings (Day 27)
     embedding_backend: str = "fixture"
 
+    # Orchestrator base URL for inter-service HTTP calls (Day 28)
+    orchestrator_url: str = "http://localhost:8080"
+
 
 settings = Settings()

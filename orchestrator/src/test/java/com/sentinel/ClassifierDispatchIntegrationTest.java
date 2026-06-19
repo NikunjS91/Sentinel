@@ -128,7 +128,7 @@ class ClassifierDispatchIntegrationTest {
         }
     }
 
-    // TC-2.8.6: classifier dispatches three tasks per incident (echo + log_analyzer + metrics)
+    // TC-2.8.6 / TC-4.2.8: classifier dispatches four tasks per incident (echo + log_analyzer + metrics + history)
     @Test
     void tc_2_8_6_three_tasks_dispatched_per_incident() throws Exception {
         List<TopicPartition> partitions = List.of(
@@ -157,7 +157,7 @@ class ClassifierDispatchIntegrationTest {
                         agentNames.add(objectMapper.readTree(r.value()).get("agentName").asText());
                     } catch (Exception ignored) {}
                 });
-                assertThat(agentNames).contains("echo", "log_analyzer", "metrics");
+                assertThat(agentNames).contains("echo", "log_analyzer", "metrics", "history");
             });
         }
     }
@@ -192,7 +192,7 @@ class ClassifierDispatchIntegrationTest {
                         recordedKeys.add(r.key());
                     } catch (Exception ignored) {}
                 });
-                assertThat(agentNames).containsExactlyInAnyOrder("echo", "log_analyzer", "metrics");
+                assertThat(agentNames).containsExactlyInAnyOrder("echo", "log_analyzer", "metrics", "history");
             });
 
             // All three tasks must be keyed by the same incident id
@@ -255,7 +255,7 @@ class ClassifierDispatchIntegrationTest {
             Incident inc = incidentRepository.findById(incidentId).orElseThrow();
             assertThat(inc.getState()).isEqualTo(IncidentState.DISPATCHED);
             assertThat(inc.getExpectedAgents())
-                .containsExactlyInAnyOrder("echo", "log_analyzer", "metrics");
+                .containsExactlyInAnyOrder("echo", "log_analyzer", "metrics", "history");
         });
     }
 }

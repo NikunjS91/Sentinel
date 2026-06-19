@@ -11,6 +11,7 @@ import com.sentinel.incident.IncidentReport;
 import com.sentinel.incident.IncidentRepository;
 import com.sentinel.incident.IncidentState;
 import com.sentinel.incident.IncidentStateMachine;
+import com.sentinel.kb.KbWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -39,6 +40,7 @@ public class AggregatorListener {
     private final Dispatcher dispatcher;
     private final SynthesizerTaskBuilder synthesizerTaskBuilder;
     private final IncidentEventPublisher events;
+    private final KbWriter kbWriter;
 
     public AggregatorListener(IncidentRepository incidents,
                               AgentTraceRepository traces,
@@ -48,7 +50,8 @@ public class AggregatorListener {
                               ObjectMapper json,
                               Dispatcher dispatcher,
                               SynthesizerTaskBuilder synthesizerTaskBuilder,
-                              IncidentEventPublisher events) {
+                              IncidentEventPublisher events,
+                              KbWriter kbWriter) {
         this.incidents = incidents;
         this.traces = traces;
         this.reports = reports;
@@ -58,6 +61,7 @@ public class AggregatorListener {
         this.dispatcher = dispatcher;
         this.synthesizerTaskBuilder = synthesizerTaskBuilder;
         this.events = events;
+        this.kbWriter = kbWriter;
     }
 
     @KafkaListener(topics = KafkaTopicConfig.AGENT_RESULTS, groupId = "orchestrator")
@@ -102,6 +106,7 @@ public class AggregatorListener {
             reports.save(report);
             stateMachine.transition(inc, IncidentState.SYNTHESIZED);
             stateMachine.transition(inc, IncidentState.RESOLVED);
+            kbWriter.writePastIncident(inc, report);
             kafka.send(KafkaTopicConfig.INCIDENTS_SYNTHESIZED,
                        inc.getId().toString(),
                        inc.getId().toString());
