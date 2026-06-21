@@ -15,6 +15,7 @@ from .history import history
 from .log_analyzer import log_analyzer
 from .metrics_agent import metrics_agent
 from .synthesizer import synthesizer
+from .topology import topology
 
 # The uniform agent signature.
 AgentFn = Callable[[AgentTask, AgentContext], Awaitable[AgentResult]]
@@ -24,6 +25,7 @@ AGENTS: dict[str, AgentFn] = {
     "log_analyzer": log_analyzer,
     "metrics": metrics_agent,
     "history": history,
+    "topology": topology,
     "synthesizer": synthesizer,
 }
 

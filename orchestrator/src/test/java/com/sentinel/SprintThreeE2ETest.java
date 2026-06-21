@@ -96,11 +96,11 @@ class SprintThreeE2ETest {
             var inc = incidents.findById(id).orElseThrow();
             assertThat(inc.getState()).isEqualTo(IncidentState.DISPATCHED);
             assertThat(inc.getExpectedAgents())
-                .containsExactlyInAnyOrder("echo", "log_analyzer", "metrics", "history");
+                .containsExactlyInAnyOrder("echo", "log_analyzer", "metrics", "history", "topology");
         });
 
-        // 3. Simulate four specialists reporting back.
-        for (String agent : List.of("metrics", "echo", "log_analyzer", "history")) {
+        // 3. Simulate five specialists reporting back.
+        for (String agent : List.of("metrics", "echo", "log_analyzer", "history", "topology")) {
             AgentResult result = new AgentResult(
                 id, agent,
                 Map.of("message", agent + " s3 e2e result"),
@@ -119,7 +119,7 @@ class SprintThreeE2ETest {
 
         // 5. expected_agents must NOT include "synthesizer".
         assertThat(incidents.findById(id).orElseThrow().getExpectedAgents())
-            .containsExactlyInAnyOrder("echo", "log_analyzer", "metrics", "history");
+            .containsExactlyInAnyOrder("echo", "log_analyzer", "metrics", "history", "topology");
 
         // 6. Simulate the Synthesizer reporting back.
         AgentResult synthResult = new AgentResult(
@@ -144,10 +144,12 @@ class SprintThreeE2ETest {
             assertThat(incidents.findById(id).orElseThrow().getState())
                 .isEqualTo(IncidentState.RESOLVED));
 
-        // 8. Four traces: three specialists + synthesizer.
+        // 8. Six traces: five specialists + synthesizer.
         assertThat(traces.findByIncidentIdAndAgentName(id, "echo")).isPresent();
         assertThat(traces.findByIncidentIdAndAgentName(id, "log_analyzer")).isPresent();
         assertThat(traces.findByIncidentIdAndAgentName(id, "metrics")).isPresent();
+        assertThat(traces.findByIncidentIdAndAgentName(id, "history")).isPresent();
+        assertThat(traces.findByIncidentIdAndAgentName(id, "topology")).isPresent();
         assertThat(traces.findByIncidentIdAndAgentName(id, "synthesizer")).isPresent();
 
         // 9. Report comes from the Synthesizer, not a specialist.
@@ -179,12 +181,12 @@ class SprintThreeE2ETest {
             var inc = incidents.findById(id).orElseThrow();
             assertThat(inc.getState()).isEqualTo(IncidentState.DISPATCHED);
             assertThat(inc.getExpectedAgents())
-                .containsExactlyInAnyOrder("echo", "log_analyzer", "metrics", "history");
+                .containsExactlyInAnyOrder("echo", "log_analyzer", "metrics", "history", "topology");
             assertThat(inc.getDeadlineAt()).isNotNull();
         });
 
-        // 3. Four specialists report back.
-        for (String agent : List.of("echo", "log_analyzer", "metrics", "history")) {
+        // 3. Five specialists report back.
+        for (String agent : List.of("echo", "log_analyzer", "metrics", "history", "topology")) {
             AgentResult result = new AgentResult(
                 id, agent,
                 Map.of("message", agent + " stub finding", "confidence", 0.8),
@@ -314,7 +316,7 @@ class SprintThreeE2ETest {
         inc.setSource("demo");
         inc.setSeverity("critical");
         inc.setState(IncidentState.DISPATCHED);
-        inc.setExpectedAgents(List.of("echo", "log_analyzer", "metrics", "history"));
+        inc.setExpectedAgents(List.of("echo", "log_analyzer", "metrics", "history", "topology"));
         inc.setDeadlineAt(OffsetDateTime.now().minusSeconds(10));
         inc.setRawAlert("{}");
         inc.setCreatedAt(OffsetDateTime.now());

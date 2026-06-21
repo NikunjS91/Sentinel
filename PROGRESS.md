@@ -2,6 +2,24 @@
 
 ## Sprint 4 — Knowledge Base, History, Topology, Runbook
 
+### Day 29 (S4-D3) — Topology agent
+- Done: `topology` agent fetches service-graph neighbors from `/kb/topology/{service}`,
+  flattens `{outgoing: [...], incoming: [...]}` into a typed `list[TopologyNeighbor]`,
+  then asks the LLM to reason about failure propagation (outgoing = potential causes,
+  incoming = downstream victims). Empty topology (no neighbors) skips the LLM entirely
+  and returns a graceful fallback. Registered via Day-19 contract (exactly 2 edits:
+  `AGENTS` dict in `_registry.py` + `ClassifierListener` dispatcher list now
+  `List.of("echo","log_analyzer","metrics","history","topology")`). Prompt uses `.replace()`
+  (not `.format()`) due to JSON schema literal braces. Post-guard fills `neighbors` from
+  the _fetch_topology result when LLM returns an empty list. `TopologyNeighbor` +
+  `TopologyFinding` types added to `agents/types.py`. No KB write-back (topology is
+  reference data; `kb_links` is not updated by agent activity). All 6 full-pipeline Java
+  tests updated to dispatch and receive 5 specialists (echo, log_analyzer, metrics,
+  history, topology).
+- Tests: 5 new Python (TC-4.3.1–4.3.5 all pass — happy path, empty topology, timeout,
+  post-guard, direction test). Prompt registry test updated for 5th prompt. `ruff` and
+  `mypy` both clean. Java compiles clean (`mvn compile test-compile`).
+
 ### Day 28 (S4-D2) — History agent + KB write-back
 - Done: `history` agent vector-similarity search against past incidents. Registered with
   Day-19 contract (exactly 2 edits: `AGENTS` dict in `_registry.py` + `ClassifierListener`

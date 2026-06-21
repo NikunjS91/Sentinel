@@ -4,7 +4,7 @@
 
 When a system breaks at 3 AM, an on-call engineer normally spends 20–40 minutes digging through logs, metrics, dashboards, and old tickets just to *understand* the problem. Sentinel replaces that first half-hour with a team of specialized AI agents that investigate in parallel and hand the engineer a single, clear diagnosis with a recommended fix.
 
-> **Project status:** Sprint 3 complete. Live React dashboard with SSE stream, per-incident deadlines + PARTIAL handling, Synthesizer agent combining three specialists' findings, and a human-in-the-loop accept/reject/edit workflow that captures labeled training data. ~73 Java tests, 42 Python tests, 8 demo-app tests, all green. Four CI jobs on every PR. See [What's built](#whats-built) for the current state and [Roadmap](#roadmap) for the full plan.
+> **Project status:** Sprint 4 Day 3 complete. Knowledge-base infrastructure (pgvector), History agent (vector-similarity search over past incidents), and Topology agent (service-graph neighbor reasoning) added. Five specialists now dispatch per incident (echo + log_analyzer + metrics + history + topology). ~82 Java tests, 54 Python tests, 8 demo-app tests, all green. Four CI jobs on every PR. See [What's built](#whats-built) for the current state and [Roadmap](#roadmap) for the full plan.
 
 ---
 
@@ -18,15 +18,15 @@ A single large AI model handling all of that does it poorly: too many concerns, 
 
 Sentinel uses a **swarm of specialist agents**, each narrow and good at one job, working in parallel — like a hospital ER team where the nurse, radiologist, lab tech, and specialist all work on one patient simultaneously instead of one after another.
 
-Three specialist investigators run in parallel on every incident. They feed a Synthesizer that combines their findings into one answer. An SRE reviews the diagnosis on a live dashboard and has the final say:
+Five specialist investigators run in parallel on every incident. They feed a Synthesizer that combines their findings into one answer. An SRE reviews the diagnosis on a live dashboard and has the final say:
 
 | Agent | Job | Example finding | Status |
 |---|---|---|---|
 | **Log Analyzer** | Scans error logs around the incident window | "200 DB timeout errors in the last 5 minutes" | ✅ Sprint 2 |
 | **Metrics** | Reads metrics and checks SLO violations | "p95 latency 0.82s exceeds SLO — DB query latency" | ✅ Sprint 2 |
 | **Synthesizer** | Combines all findings — names disagreements as dissent notes | Final diagnosis + confidence score + dissenting notes | ✅ Sprint 3 |
-| **Topology** | Maps service dependencies and recent deploys | "A deploy hit this service 10 minutes ago" | 🔜 Sprint 4 |
-| **History** | Searches past incidents for similar patterns | "We saw this in March — bad DB query" | 🔜 Sprint 4 |
+| **History** | Searches past incidents for similar patterns via pgvector | "We saw this in March — bad DB query" | ✅ Sprint 4 |
+| **Topology** | Maps service-graph neighbors, reasons about failure propagation | "payment-service (outgoing dep) likely implicated" | ✅ Sprint 4 |
 | **Runbook** | Matches the incident to documented playbooks | "Runbook exists — step 1: roll back" | 🔜 Sprint 4 |
 
 The result, delivered in seconds: *what broke, why, whether it's been seen before, and what to do — with a confidence score.* A human reviews it on a live dashboard, then accepts, rejects, or edits the AI's recommendation. Every edit is stored alongside the AI's original as labeled training data.
@@ -76,15 +76,15 @@ flowchart TB
     subgraph AP["Agent Plane · FastAPI (Python)"]
         direction TB
         LLM[LLM Gateway\nRetry · Fallback]
-        subgraph Agents["Agent Workers — Sprint 2–3"]
+        subgraph Agents["Agent Workers — Sprint 2–4"]
             A1[Echo]
             A2[Log Analyzer]
             A3[Metrics]
             A4[Synthesizer]
+            A5[History]
+            A6[Topology]
         end
-        subgraph AgentsPlanned["Planned — Sprint 4"]
-            AP2[Topology]
-            AP3[History]
+        subgraph AgentsPlanned["Planned — Sprint 4 Day 4+"]
             AP4[Runbook]
         end
     end
@@ -154,7 +154,7 @@ flowchart TB
 
 ## What's built
 
-> Sprint 3 complete — ~73 Java tests · 42 Python tests · 8 demo-app tests · four CI jobs · live dashboard
+> Sprint 4 Day 3 complete — ~82 Java tests · 54 Python tests · 8 demo-app tests · four CI jobs · live dashboard + knowledge base
 
 | Component | Status | Details |
 |---|---|---|
@@ -178,13 +178,17 @@ flowchart TB
 | Metrics agent | ✅ Sprint 2 | LLM agent reading 3 PromQL queries + SLO violations; calibrated confidence |
 | Three-agent dispatch | ✅ Sprint 2 | Dict-based registry; `expected_agents` per incident; aggregator resolves dynamically |
 | Swarm asymmetry | ✅ Sprint 2 | TC-2.11.2 codifies: Metrics 0.88 confidence vs Log Analyzer 0.15 on slow_query |
-| Synthesizer agent | ✅ Sprint 3 | Meta-agent combining three specialists' findings; dissent notes surface explicit disagreements |
+| Synthesizer agent | ✅ Sprint 3 | Meta-agent combining specialists' findings; dissent notes surface explicit disagreements |
 | Two-stage dispatch | ✅ Sprint 3 | Specialists first; Synthesizer receives their findings in payload; meta-agent not in `expected_agents` |
 | Per-incident deadlines | ✅ Sprint 3 | `deadline_at` set at dispatch; DeadlineSweeper transitions overdue incidents to PARTIAL path |
 | PARTIAL terminal state | ✅ Sprint 3 | Three new states (`AGGREGATING_PARTIAL→SYNTHESIZED_PARTIAL→PARTIAL`) preserve audit lineage |
 | React dashboard | ✅ Sprint 3 | SSE-powered live incident list; dark monospace theme; state pills; no UI library |
 | Human-in-the-loop | ✅ Sprint 3 | `POST /accept`, `POST /reject`, `PATCH /report`; AI originals preserved; edits = labeled training data |
 | Filter bar + pagination | ✅ Sprint 3 | `GET /incidents` with state/service/decision/q/limit/before; URL-synced; cursor pagination |
+| Knowledge-base infrastructure | ✅ Sprint 4 | pgvector schema, `kb_documents` (vector similarity) + `kb_links` (topology) + `kb_runbooks`; `/kb/search`, `/kb/topology/{service}`, `/kb/runbooks/{service}` REST API; seed data; embedding abstraction (fixture + sentence-transformers) |
+| History agent | ✅ Sprint 4 | Embeds incident query, POSTs to `/kb/search`, finds semantically similar past incidents; KbWriter inserts resolved incidents back as `past_incident` rows; `EmbeddingBackfillTask` fills NULL vectors async |
+| Topology agent | ✅ Sprint 4 | GETs `/kb/topology/{service}`, flattens neighbors, reasons about failure-propagation direction (outgoing = causes, incoming = victims); skips LLM when no topology data |
+| Five-agent dispatch | ✅ Sprint 4 | echo + log_analyzer + metrics + history + topology dispatched per incident; Day-19 registry contract: 2-edit extension |
 
 ---
 
@@ -217,7 +221,7 @@ cd ui && npm install && npm run dev
 curl -i -X POST http://localhost:8080/alerts \
   -H 'Content-Type: application/json' \
   -d @sample-alert.json
-# → 201 Created  (new incident, dispatches echo + log_analyzer + metrics)
+# → 201 Created  (new incident, dispatches echo + log_analyzer + metrics + history + topology)
 # → Same curl again → 200 OK (deduplicated — same incident ID returned)
 # Dashboard: state pill cycles RECEIVED → DISPATCHED → AGGREGATING → RESOLVED
 # Click the incident to expand: summary, root cause, confidence, dissent notes
@@ -231,8 +235,8 @@ curl -s -X POST http://localhost:8090/admin/failure-mode \
 # See docs/demos/SPRINT-3-HUMAN-IN-LOOP.md for the human-in-the-loop demo script
 
 # Run all tests (requires Docker)
-cd orchestrator && ./mvnw verify             # ~73 Java tests
-cd ../agents && ruff check . && mypy . && pytest  # 42 Python tests
+cd orchestrator && ./mvnw verify             # ~82 Java tests
+cd ../agents && ruff check . && mypy . && pytest  # 54 Python tests
 cd ../demo-app && mvn verify                 # 8 demo-app tests
 cd ../ui && npm run build                    # TypeScript + Vite build gate
 ```
@@ -250,7 +254,7 @@ The project is built in six two-week sprints, scoped as **Phase 1** of a longer 
 - [x] **Sprint 1** — Foundation: full pipeline end-to-end ✅ — alert ingestion, state machine, classifier/dispatcher, Python agent service, LLM abstraction (Ollama), aggregator, 31+9 tests, real CI
 - [x] **Sprint 2** — Demo app + full observability stack, Log Analyzer + Metrics agents, tool layer, prompt registry, dict dispatch, swarm asymmetry codified ✅ — ~40+37+8 tests, three-agent fan-in, CI-gated
 - [x] **Sprint 3** — Synthesizer agent, two-stage dispatch, per-incident deadlines + PARTIAL state, live React dashboard with SSE, human-in-the-loop accept/reject/edit, filterable incident list ✅ — ~73+42+8 tests, four CI jobs
-- [ ] **Sprint 4** — Topology, History (pgvector), and Runbook agents
+- [ ] **Sprint 4** — Knowledge base (pgvector), History agent, Topology agent ✅ Day 3/5 — Runbook agent (Day 4), capability-based dispatch (Day 5) remaining
 - [ ] **Sprint 5** — Production hardening: circuit breakers, budgets, evaluation harness, prompt versioning
 - [ ] **Sprint 6** — Kubernetes manifests, CI/CD pipeline, documentation, demo
 
