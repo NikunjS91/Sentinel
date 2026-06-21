@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useIncidentStream } from './useIncidentStream';
 import type { IncidentWithReport } from './useIncidentStream';
-import type { IncidentState } from './types';
+import type { Filter, IncidentState } from './types';
+import { EMPTY_FILTER } from './types';
 import './App.css';
 
 const API = import.meta.env.VITE_API ?? 'http://localhost:8080';
@@ -21,8 +22,38 @@ const STATE_COLORS: Record<IncidentState, string> = {
 };
 
 export default function App() {
-  const { incidents, connected } = useIncidentStream();
+  const { incidents, filter, setFilter, nextBefore, loadOlder, loading, connected } =
+    useIncidentStream();
   const [selected, setSelected] = useState<string | null>(null);
+
+  // Hydrate filter from URL on mount.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const initial: Filter = {
+      state: params.get('state')?.split(',').filter(Boolean) ?? [],
+      service: params.get('service') ?? null,
+      decision: (params.get('decision') as Filter['decision']) ?? 'all',
+      q: params.get('q') ?? '',
+    };
+    const hasParams = params.toString().length > 0;
+    if (hasParams) setFilter(initial);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync filter to URL on every change.
+  useEffect(() => {
+    const p = new URLSearchParams();
+    if (filter.state.length > 0) p.set('state', filter.state.join(','));
+    if (filter.service) p.set('service', filter.service);
+    if (filter.decision !== 'all') p.set('decision', filter.decision);
+    if (filter.q.trim()) p.set('q', filter.q.trim());
+    const qs = p.toString();
+    window.history.replaceState(null, '', qs ? `?${qs}` : window.location.pathname);
+  }, [filter]);
+
+  const services = useMemo(
+    () => Array.from(new Set(incidents.map(i => i.service))).sort(),
+    [incidents],
+  );
 
   return (
     <div className="app">
@@ -33,9 +64,10 @@ export default function App() {
         </span>
       </header>
       <main>
+        <FilterBar filter={filter} setFilter={setFilter} services={services} />
         <section className="incident-list">
-          {incidents.length === 0 && (
-            <p className="empty">No incidents yet. POST one to /alerts.</p>
+          {!loading && incidents.length === 0 && (
+            <p className="empty">No incidents match the current filter.</p>
           )}
           {incidents.map(inc => (
             <article
@@ -67,7 +99,68 @@ export default function App() {
             </article>
           ))}
         </section>
+        {nextBefore && (
+          <div className="load-more">
+            <button onClick={loadOlder} disabled={loading}>
+              {loading ? 'Loading...' : 'Load older'}
+            </button>
+          </div>
+        )}
       </main>
+    </div>
+  );
+}
+
+function FilterBar({ filter, setFilter, services }: {
+  filter: Filter;
+  setFilter: (f: Filter) => void;
+  services: string[];
+}) {
+  const hasActive = filter.state.length > 0 || filter.service ||
+    filter.decision !== 'all' || filter.q;
+
+  return (
+    <div className="filter-bar">
+      <select
+        value={filter.state.length === 0 ? 'all' : filter.state.join(',')}
+        onChange={e => {
+          const v = e.target.value;
+          setFilter({ ...filter, state: v === 'all' ? [] : v.split(',') });
+        }}>
+        <option value="all">All states</option>
+        <option value="RECEIVED,CLASSIFIED,DISPATCHED,AGGREGATING,AGGREGATING_PARTIAL">Active</option>
+        <option value="RESOLVED">Resolved</option>
+        <option value="PARTIAL">Partial</option>
+        <option value="RESOLVED,PARTIAL">All terminal</option>
+      </select>
+
+      <select
+        value={filter.service ?? ''}
+        onChange={e => setFilter({ ...filter, service: e.target.value || null })}>
+        <option value="">All services</option>
+        {services.map(s => <option key={s} value={s}>{s}</option>)}
+      </select>
+
+      <select
+        value={filter.decision}
+        onChange={e => setFilter({ ...filter, decision: e.target.value as Filter['decision'] })}>
+        <option value="all">All decisions</option>
+        <option value="undecided">Undecided</option>
+        <option value="accepted">Accepted</option>
+        <option value="rejected">Rejected</option>
+        <option value="edited">Edited</option>
+      </select>
+
+      <input
+        type="search"
+        placeholder="Search summary, cause, action..."
+        value={filter.q}
+        onChange={e => setFilter({ ...filter, q: e.target.value })}
+      />
+
+      {hasActive && (
+        <button className="clear" onClick={() => setFilter(EMPTY_FILTER)}>Clear</button>
+      )}
     </div>
   );
 }
@@ -166,9 +259,7 @@ function IncidentDetail({ inc }: { inc: IncidentWithReport }) {
           </label>
           <div className="form-actions">
             <button type="submit">Save</button>
-            <button type="button" onClick={e => { e.stopPropagation(); setEditing(false); }}>
-              Cancel
-            </button>
+            <button type="button" onClick={e => { e.stopPropagation(); setEditing(false); }}>Cancel</button>
           </div>
         </form>
       )}

@@ -39,6 +39,9 @@ public class Incident {
     @Column(name = "deadline_at")
     private OffsetDateTime deadlineAt;
 
+    @OneToOne(mappedBy = "incident", fetch = FetchType.LAZY)
+    private IncidentReport report;
+
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 

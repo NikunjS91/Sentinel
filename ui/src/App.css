@@ -46,3 +46,18 @@ h1 { margin: 0; }
 
 .error { margin-top: 8px; padding: 8px 12px; border-radius: 4px;
          background: #2a1a1a; border: 1px solid #cf222e; color: #e18c8c; font-size: 0.85rem; }
+
+.filter-bar { display: flex; gap: 8px; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
+.filter-bar select, .filter-bar input {
+  padding: 6px 10px; background: #1a1a1a; color: #eee;
+  border: 1px solid #333; border-radius: 3px; font-family: inherit; font-size: 0.85rem; }
+.filter-bar input[type="search"] { flex: 1; min-width: 180px; }
+.filter-bar button.clear { padding: 6px 12px; background: transparent; color: #aaa;
+                           border: 1px solid #444; border-radius: 3px; cursor: pointer; font-family: inherit; }
+.filter-bar button.clear:hover { background: #2a2a2a; color: #eee; }
+
+.load-more { text-align: center; margin-top: 16px; }
+.load-more button { padding: 8px 24px; background: #2a2a2a; color: #eee;
+                    border: 1px solid #444; border-radius: 3px; cursor: pointer; font-family: inherit; }
+.load-more button:hover { background: #333; }
+.load-more button:disabled { opacity: 0.5; cursor: default; }

@@ -15,6 +15,10 @@ public class IncidentReport {
     @Column(name = "incident_id", nullable = false)
     private UUID incidentId;
 
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "incident_id", insertable = false, updatable = false)
+    private Incident incident;
+
     private String summary;
 
     @Column(name = "root_cause")

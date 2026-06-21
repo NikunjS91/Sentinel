@@ -1,6 +1,7 @@
 package com.sentinel.incident;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -9,7 +10,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface IncidentRepository extends JpaRepository<Incident, UUID> {
+public interface IncidentRepository extends JpaRepository<Incident, UUID>,
+                                            JpaSpecificationExecutor<Incident> {
     Optional<Incident> findByIdempotencyKey(String idempotencyKey);
 
     @Query("SELECT i FROM Incident i WHERE i.deadlineAt <= :now AND " +
