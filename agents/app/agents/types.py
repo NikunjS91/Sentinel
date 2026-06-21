@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -35,3 +37,23 @@ class SynthesizerFinding(BaseModel):
     confidence: float = 0.0
     dissenting_notes: list[str] = Field(default_factory=list)
     contributing_agents: list[str] = Field(default_factory=list)
+
+
+class MatchedIncident(BaseModel):
+    """One past incident the KB search returned."""
+
+    id: str
+    title: str
+    distance: float          # cosine distance; lower = more similar
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class HistoryFinding(BaseModel):
+    """The History agent's structured output.
+
+    Mirrors the JSON shape its prompt requests."""
+
+    matched_incidents: list[MatchedIncident] = Field(default_factory=list)
+    most_relevant_match_id: str | None = None
+    assessment: str | None = None
+    confidence: float = 0.0

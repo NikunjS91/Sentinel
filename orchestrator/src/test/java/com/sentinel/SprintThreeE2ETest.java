@@ -96,11 +96,11 @@ class SprintThreeE2ETest {
             var inc = incidents.findById(id).orElseThrow();
             assertThat(inc.getState()).isEqualTo(IncidentState.DISPATCHED);
             assertThat(inc.getExpectedAgents())
-                .containsExactlyInAnyOrder("echo", "log_analyzer", "metrics");
+                .containsExactlyInAnyOrder("echo", "log_analyzer", "metrics", "history");
         });
 
-        // 3. Simulate three specialists reporting back.
-        for (String agent : List.of("metrics", "echo", "log_analyzer")) {
+        // 3. Simulate four specialists reporting back.
+        for (String agent : List.of("metrics", "echo", "log_analyzer", "history")) {
             AgentResult result = new AgentResult(
                 id, agent,
                 Map.of("message", agent + " s3 e2e result"),
@@ -119,7 +119,7 @@ class SprintThreeE2ETest {
 
         // 5. expected_agents must NOT include "synthesizer".
         assertThat(incidents.findById(id).orElseThrow().getExpectedAgents())
-            .containsExactlyInAnyOrder("echo", "log_analyzer", "metrics");
+            .containsExactlyInAnyOrder("echo", "log_analyzer", "metrics", "history");
 
         // 6. Simulate the Synthesizer reporting back.
         AgentResult synthResult = new AgentResult(
@@ -179,12 +179,12 @@ class SprintThreeE2ETest {
             var inc = incidents.findById(id).orElseThrow();
             assertThat(inc.getState()).isEqualTo(IncidentState.DISPATCHED);
             assertThat(inc.getExpectedAgents())
-                .containsExactlyInAnyOrder("echo", "log_analyzer", "metrics");
+                .containsExactlyInAnyOrder("echo", "log_analyzer", "metrics", "history");
             assertThat(inc.getDeadlineAt()).isNotNull();
         });
 
-        // 3. Three specialists report back.
-        for (String agent : List.of("echo", "log_analyzer", "metrics")) {
+        // 3. Four specialists report back.
+        for (String agent : List.of("echo", "log_analyzer", "metrics", "history")) {
             AgentResult result = new AgentResult(
                 id, agent,
                 Map.of("message", agent + " stub finding", "confidence", 0.8),
@@ -314,7 +314,7 @@ class SprintThreeE2ETest {
         inc.setSource("demo");
         inc.setSeverity("critical");
         inc.setState(IncidentState.DISPATCHED);
-        inc.setExpectedAgents(List.of("echo", "log_analyzer", "metrics"));
+        inc.setExpectedAgents(List.of("echo", "log_analyzer", "metrics", "history"));
         inc.setDeadlineAt(OffsetDateTime.now().minusSeconds(10));
         inc.setRawAlert("{}");
         inc.setCreatedAt(OffsetDateTime.now());
