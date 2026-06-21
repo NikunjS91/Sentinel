@@ -6,6 +6,7 @@ from typing import cast
 from fastapi import FastAPI
 
 from .db import upsert_prompt_versions
+from .embedding.factory import make_embedding_client
 from .prompt_registry import PromptRegistry
 from .settings import settings
 from .worker import KafkaWorker
@@ -19,8 +20,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await upsert_prompt_versions(registry)
     app.state.prompt_registry = registry
 
+    embedder = make_embedding_client()
     worker = KafkaWorker(settings)
     worker.prompt_registry = registry
+    worker.embedder = embedder
     await worker.start()
     app.state.worker = worker
     try:

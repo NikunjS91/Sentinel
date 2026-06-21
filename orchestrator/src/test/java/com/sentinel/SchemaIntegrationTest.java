@@ -26,7 +26,7 @@ class SchemaIntegrationTest {
 
     @Container
     static PostgreSQLContainer<?> postgres =
-        new PostgreSQLContainer<>("postgres:16");
+        new PostgreSQLContainer<>("pgvector/pgvector:pg16");
 
     @DynamicPropertySource
     static void datasource(DynamicPropertyRegistry registry) {

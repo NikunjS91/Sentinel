@@ -41,5 +41,8 @@ class Settings(BaseSettings):
     # Prompts (Day 16)
     prompts_dir: Path = Path(__file__).parent / "prompts"
 
+    # Embeddings (Day 27)
+    embedding_backend: str = "fixture"
+
 
 settings = Settings()

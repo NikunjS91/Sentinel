@@ -1,5 +1,26 @@
 # Sentinel — Progress Log
 
+## Sprint 4 — Knowledge Base, History, Topology, Runbook
+
+### Day 27 (S4-D1) — Knowledge-base infrastructure
+- Done: Shared data layer for the three new Sprint-4 agents (History, Topology, Runbook).
+  V5 Flyway migration: `CREATE EXTENSION IF NOT EXISTS vector`, `knowledge_base` schema,
+  `kb_documents` (vector(384) + IVFFlat cosine index), `kb_links` (topology adjacency,
+  UNIQUE tuple constraint), `kb_runbooks` (GIN FTS + tags GIN). Seed SQL: 5 past incidents,
+  5 topology links, 4 runbooks — all idempotent (`ON CONFLICT DO NOTHING`). JPA entities
+  `KbDocument`, `KbLink`, `KbRunbook` (`@JdbcTypeCode(SqlTypes.ARRAY)` for tags).
+  Repositories: `KbDocumentRepository` (native pgvector `<=>` query), `KbLinkRepository`
+  (Spring Data derived), `KbRunbookRepository` (native GIN FTS). `KnowledgeBaseSeeder`
+  (`@PostConstruct`, disabled via `sentinel.kb.seed-on-startup=false`). `KbController`:
+  `GET/POST /kb/search`, `GET /kb/topology/{service}`, `GET /kb/runbooks?q=`. Python
+  embedding abstraction: `EmbeddingClient` ABC + `FixtureEmbedding` (SHA-256 deterministic,
+  384-dim) + `SentenceTransformerEmbedding` (lazy all-MiniLM-L6-v2) + factory (default
+  `embedding_backend=fixture`). `AgentContext` extended with `embedder` field. Worker and
+  main wired. `backfill_embeddings.py` script. Postgres image upgraded to
+  `pgvector/pgvector:pg16` everywhere (docker-compose + all 13 Testcontainers files).
+- Tests: 78 Java (73 existing + 5 new TC-4.1.1–4.1.5; all green), 2 Python (TC-4.1.6
+  fixture determinism passes; TC-4.1.7 sentence_transformer skipped — not installed in CI).
+
 ## Sprint 3 — Synthesis, Deadlines, UI
 
 ### Day 26 (S3-D6) — Sprint 3 close
