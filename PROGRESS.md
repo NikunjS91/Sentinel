@@ -1,5 +1,24 @@
 # Sentinel — Progress Log
 
+### CI breakage investigation — 2026-06-22
+
+`docs/CI-MAIN-RED-FIX.md` prompted an audit of CI health on 2026-06-22.
+
+Result: **Case A** — `main` has been green throughout. The screenshot of CI run #43
+(PR #19, Sprint 2 close, agents job red) was stale; two follow-up commits (`a884410`
+type annotations, `3f0b128` worker test wiring) fixed the failure before the PR merged.
+All CI runs on `main` since PR #20 show 4/4 jobs green.
+
+Separate finding: PR #28 (topology agent, Day 29) was accidentally merged to
+`feat/S4-D2-history-agent` instead of `main`. Fixed by creating PR #29 from
+`feat/S4-D3-topology-agent` targeting `main` directly and merging it.
+
+Lesson: in a stacked-PR workflow, always confirm `baseRefName` in the `gh pr view`
+output before calling `gh pr merge`. The "MERGED" status does not show which branch
+received the merge.
+
+---
+
 ## Sprint 4 — Knowledge Base, History, Topology, Runbook
 
 ### Day 29 (S4-D3) — Topology agent
