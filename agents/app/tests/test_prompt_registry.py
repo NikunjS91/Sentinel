@@ -21,11 +21,13 @@ async def _postgres_reachable() -> bool:
 def test_tc_2_7_1_prompts_load_and_version() -> None:
     registry = PromptRegistry(settings.prompts_dir)
 
-    assert len(registry) == 4
+    assert len(registry) == 5
     for prompt in registry.all():
         assert isinstance(prompt, Prompt)
         assert len(prompt.version) == 12
-        assert prompt.name in ("log_analyzer", "metrics_agent", "synthesizer", "history")
+        assert prompt.name in (
+            "log_analyzer", "metrics_agent", "synthesizer", "history", "topology"
+        )
 
 
 # TC-2.7.2: same content yields same version across registry instances

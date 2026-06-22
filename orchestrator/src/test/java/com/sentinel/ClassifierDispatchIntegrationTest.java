@@ -157,7 +157,7 @@ class ClassifierDispatchIntegrationTest {
                         agentNames.add(objectMapper.readTree(r.value()).get("agentName").asText());
                     } catch (Exception ignored) {}
                 });
-                assertThat(agentNames).contains("echo", "log_analyzer", "metrics", "history");
+                assertThat(agentNames).contains("echo", "log_analyzer", "metrics", "history", "topology");
             });
         }
     }
@@ -192,10 +192,10 @@ class ClassifierDispatchIntegrationTest {
                         recordedKeys.add(r.key());
                     } catch (Exception ignored) {}
                 });
-                assertThat(agentNames).containsExactlyInAnyOrder("echo", "log_analyzer", "metrics", "history");
+                assertThat(agentNames).containsExactlyInAnyOrder("echo", "log_analyzer", "metrics", "history", "topology");
             });
 
-            // All three tasks must be keyed by the same incident id
+            // All five tasks must be keyed by the same incident id
             assertThat(recordedKeys).containsExactly(incidentId.toString());
         }
     }
@@ -255,7 +255,7 @@ class ClassifierDispatchIntegrationTest {
             Incident inc = incidentRepository.findById(incidentId).orElseThrow();
             assertThat(inc.getState()).isEqualTo(IncidentState.DISPATCHED);
             assertThat(inc.getExpectedAgents())
-                .containsExactlyInAnyOrder("echo", "log_analyzer", "metrics", "history");
+                .containsExactlyInAnyOrder("echo", "log_analyzer", "metrics", "history", "topology");
         });
     }
 }

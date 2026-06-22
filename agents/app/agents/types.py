@@ -57,3 +57,23 @@ class HistoryFinding(BaseModel):
     most_relevant_match_id: str | None = None
     assessment: str | None = None
     confidence: float = 0.0
+
+
+class TopologyNeighbor(BaseModel):
+    """One neighboring service in the topology graph."""
+
+    service: str
+    direction: str          # "outgoing" (we → them) | "incoming" (they → us)
+    relationship: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class TopologyFinding(BaseModel):
+    """The Topology agent's structured output.
+
+    Mirrors the JSON shape its prompt requests."""
+
+    neighbors: list[TopologyNeighbor] = Field(default_factory=list)
+    likely_implicated: list[str] = Field(default_factory=list)
+    assessment: str | None = None
+    confidence: float = 0.0
