@@ -2,6 +2,22 @@
 
 ## Sprint 4 — Knowledge Base, History, Topology, Runbook
 
+### Day 30 (S4-D4) — Runbook agent
+- Done: `runbook` agent queries `/kb/runbooks?q=<query>&limit=5` (PostgreSQL full-text search
+  via `to_tsvector`/`plainto_tsquery`), asks the LLM whether any returned runbook genuinely
+  applies, and extracts the most relevant steps. Registered via Day-19 contract (exactly 2 edits:
+  `AGENTS` dict in `_registry.py` + `ClassifierListener` dispatcher list now
+  `List.of("echo","log_analyzer","metrics","history","topology","runbook")`). `_build_query`
+  joins service + alert_name + symptoms_summary for FTS. Post-guard fills `matched_runbooks`
+  from raw candidates when LLM returns an empty list. No embedder needed (FTS, not vector
+  search). `RunbookMatch` + `RunbookFinding` types added to `agents/types.py`. Prompt template
+  `runbook.txt` instructs calibrated confidence: 0.0 = no match, 0.5 = partial, 0.8+ = strong.
+  All 6 full-pipeline Java tests updated to dispatch and receive 6 specialists. Day-19 contract
+  verified: `expected_agents` count ticks from 5 to 6 automatically via `getExpectedAgents().size()`.
+- Tests: 5 new Python (TC-4.4.1–4.4.5 all pass — happy path, no candidates, unparseable LLM,
+  timeout, agent_name). Prompt registry test updated for 6th prompt. `ruff` and `mypy` both clean.
+- Spec: `docs/Day30/DAY-30-RUNBOOK-AGENT.md`
+
 ### Day 29 (S4-D3) — Topology agent
 - Done: `topology` agent fetches service-graph neighbors from `/kb/topology/{service}`,
   flattens `{outgoing: [...], incoming: [...]}` into a typed `list[TopologyNeighbor]`,

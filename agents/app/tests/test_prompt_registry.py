@@ -21,12 +21,12 @@ async def _postgres_reachable() -> bool:
 def test_tc_2_7_1_prompts_load_and_version() -> None:
     registry = PromptRegistry(settings.prompts_dir)
 
-    assert len(registry) == 5
+    assert len(registry) == 6
     for prompt in registry.all():
         assert isinstance(prompt, Prompt)
         assert len(prompt.version) == 12
         assert prompt.name in (
-            "log_analyzer", "metrics_agent", "synthesizer", "history", "topology"
+            "log_analyzer", "metrics_agent", "synthesizer", "history", "topology", "runbook"
         )
 
 

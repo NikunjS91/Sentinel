@@ -86,8 +86,8 @@ class KbWriterIntegrationTest {
             assertThat(incidents.findById(id).orElseThrow().getState())
                 .isEqualTo(IncidentState.DISPATCHED));
 
-        // Send four specialist results
-        for (String agent : List.of("echo", "log_analyzer", "metrics", "history", "topology")) {
+        // Send six specialist results
+        for (String agent : List.of("echo", "log_analyzer", "metrics", "history", "topology", "runbook")) {
             AgentResult result = new AgentResult(
                 id, agent,
                 Map.of("message", agent + " kbwriter test"),
@@ -154,7 +154,7 @@ class KbWriterIntegrationTest {
         inc.setSource("demo");
         inc.setSeverity("critical");
         inc.setState(IncidentState.DISPATCHED);
-        inc.setExpectedAgents(List.of("echo", "log_analyzer", "metrics", "history", "topology"));
+        inc.setExpectedAgents(List.of("echo", "log_analyzer", "metrics", "history", "topology", "runbook"));
         inc.setDeadlineAt(OffsetDateTime.now().minusSeconds(10));
         inc.setRawAlert("{}");
         inc.setCreatedAt(OffsetDateTime.now());

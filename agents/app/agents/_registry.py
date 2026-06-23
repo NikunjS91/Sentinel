@@ -14,6 +14,7 @@ from .echo import echo_agent
 from .history import history
 from .log_analyzer import log_analyzer
 from .metrics_agent import metrics_agent
+from .runbook import runbook
 from .synthesizer import synthesizer
 from .topology import topology
 
@@ -26,6 +27,7 @@ AGENTS: dict[str, AgentFn] = {
     "metrics": metrics_agent,
     "history": history,
     "topology": topology,
+    "runbook": runbook,
     "synthesizer": synthesizer,
 }
 
