@@ -4,7 +4,7 @@
 
 When a system breaks at 3 AM, an on-call engineer normally spends 20–40 minutes digging through logs, metrics, dashboards, and old tickets just to *understand* the problem. Sentinel replaces that first half-hour with a team of specialized AI agents that investigate in parallel and hand the engineer a single, clear diagnosis with a recommended fix.
 
-> **Project status:** Sprint 4 Day 3 complete. Knowledge-base infrastructure (pgvector), History agent (vector-similarity search over past incidents), and Topology agent (service-graph neighbor reasoning) added. Five specialists now dispatch per incident (echo + log_analyzer + metrics + history + topology). ~82 Java tests, 54 Python tests, 8 demo-app tests, all green. Four CI jobs on every PR. See [What's built](#whats-built) for the current state and [Roadmap](#roadmap) for the full plan.
+> **Project status:** Sprint 4 complete — 6-agent swarm with pgvector knowledge base and self-learning feedback loop. History (vector similarity), Topology (service-graph), and Runbook (PostgreSQL FTS) agents added. Every resolved incident writes back to the KB as training data for the next. ~85 Java tests, 60 Python tests, 8 demo-app tests, all green. Four CI jobs on every PR. See [What's built](#whats-built) for the current state and [Roadmap](#roadmap) for the full plan.
 
 ---
 
@@ -18,7 +18,7 @@ A single large AI model handling all of that does it poorly: too many concerns, 
 
 Sentinel uses a **swarm of specialist agents**, each narrow and good at one job, working in parallel — like a hospital ER team where the nurse, radiologist, lab tech, and specialist all work on one patient simultaneously instead of one after another.
 
-Five specialist investigators run in parallel on every incident. They feed a Synthesizer that combines their findings into one answer. An SRE reviews the diagnosis on a live dashboard and has the final say:
+Six specialist investigators run in parallel on every incident. They feed a Synthesizer that combines their findings into one answer. An SRE reviews the diagnosis on a live dashboard and has the final say:
 
 | Agent | Job | Example finding | Status |
 |---|---|---|---|
@@ -27,7 +27,7 @@ Five specialist investigators run in parallel on every incident. They feed a Syn
 | **Synthesizer** | Combines all findings — names disagreements as dissent notes | Final diagnosis + confidence score + dissenting notes | ✅ Sprint 3 |
 | **History** | Searches past incidents for similar patterns via pgvector | "We saw this in March — bad DB query" | ✅ Sprint 4 |
 | **Topology** | Maps service-graph neighbors, reasons about failure propagation | "payment-service (outgoing dep) likely implicated" | ✅ Sprint 4 |
-| **Runbook** | Matches the incident to documented playbooks | "Runbook exists — step 1: roll back" | 🔜 Sprint 4 |
+| **Runbook** | Matches the incident to documented playbooks via PostgreSQL FTS over kb_runbooks | "Runbook exists — step 1: roll back" | ✅ Sprint 4 |
 
 The result, delivered in seconds: *what broke, why, whether it's been seen before, and what to do — with a confidence score.* A human reviews it on a live dashboard, then accepts, rejects, or edits the AI's recommendation. Every edit is stored alongside the AI's original as labeled training data.
 
@@ -84,8 +84,7 @@ flowchart TB
             A5[History]
             A6[Topology]
         end
-        subgraph AgentsPlanned["Planned — Sprint 4 Day 4+"]
-            AP4[Runbook]
+            A7[Runbook]
         end
     end
 
@@ -154,7 +153,7 @@ flowchart TB
 
 ## What's built
 
-> Sprint 4 Day 3 complete — ~82 Java tests · 54 Python tests · 8 demo-app tests · four CI jobs · live dashboard + knowledge base
+> Sprint 4 complete — ~85 Java tests · 60 Python tests · 8 demo-app tests · four CI jobs · 6-agent swarm + pgvector knowledge base + self-learning feedback loop
 
 | Component | Status | Details |
 |---|---|---|
@@ -188,7 +187,8 @@ flowchart TB
 | Knowledge-base infrastructure | ✅ Sprint 4 | pgvector schema, `kb_documents` (vector similarity) + `kb_links` (topology) + `kb_runbooks`; `/kb/search`, `/kb/topology/{service}`, `/kb/runbooks/{service}` REST API; seed data; embedding abstraction (fixture + sentence-transformers) |
 | History agent | ✅ Sprint 4 | Embeds incident query, POSTs to `/kb/search`, finds semantically similar past incidents; KbWriter inserts resolved incidents back as `past_incident` rows; `EmbeddingBackfillTask` fills NULL vectors async |
 | Topology agent | ✅ Sprint 4 | GETs `/kb/topology/{service}`, flattens neighbors, reasons about failure-propagation direction (outgoing = causes, incoming = victims); skips LLM when no topology data |
-| Five-agent dispatch | ✅ Sprint 4 | echo + log_analyzer + metrics + history + topology dispatched per incident; Day-19 registry contract: 2-edit extension |
+| Runbook agent | ✅ Sprint 4 | PostgreSQL FTS over `kb_runbooks` (`to_tsvector`/`plainto_tsquery`); calibrated confidence (0.0 no match → 0.8+ strong); post-guard fills matches when LLM returns empty |
+| Six-agent dispatch | ✅ Sprint 4 | echo + log_analyzer + metrics + history + topology + runbook dispatched per incident; Day-19 registry contract: 2-edit extension held across all three new agents |
 
 ---
 
@@ -254,7 +254,7 @@ The project is built in six two-week sprints, scoped as **Phase 1** of a longer 
 - [x] **Sprint 1** — Foundation: full pipeline end-to-end ✅ — alert ingestion, state machine, classifier/dispatcher, Python agent service, LLM abstraction (Ollama), aggregator, 31+9 tests, real CI
 - [x] **Sprint 2** — Demo app + full observability stack, Log Analyzer + Metrics agents, tool layer, prompt registry, dict dispatch, swarm asymmetry codified ✅ — ~40+37+8 tests, three-agent fan-in, CI-gated
 - [x] **Sprint 3** — Synthesizer agent, two-stage dispatch, per-incident deadlines + PARTIAL state, live React dashboard with SSE, human-in-the-loop accept/reject/edit, filterable incident list ✅ — ~73+42+8 tests, four CI jobs
-- [ ] **Sprint 4** — Knowledge base (pgvector), History agent, Topology agent ✅ Day 3/5 — Runbook agent (Day 4), capability-based dispatch (Day 5) remaining
+- [x] **Sprint 4** — 6-agent swarm (History, Topology, Runbook), pgvector knowledge base, self-learning feedback loop (resolved incidents write back to KB) ✅ — ~85+60+8 tests, four CI jobs
 - [ ] **Sprint 5** — Production hardening: circuit breakers, budgets, evaluation harness, prompt versioning
 - [ ] **Sprint 6** — Kubernetes manifests, CI/CD pipeline, documentation, demo
 

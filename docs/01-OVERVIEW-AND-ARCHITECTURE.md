@@ -22,10 +22,10 @@ The mental model is a hospital ER team: nurse, radiologist, lab tech, specialist
 |---|---|---|---|
 | Log Analyzer | Find error patterns near the incident window | Loki (LogQL) | ✅ Sprint 2 |
 | Metrics | Detect SLO violations and correlated metric anomalies | Prometheus (PromQL) | ✅ Sprint 2 |
-| Synthesizer | Combine all findings into one report | The other agents' outputs | 🔜 Sprint 3 |
-| Topology | Map affected service to dependencies and recent deploys | Service graph + deploy log | 🔜 Sprint 4 |
-| History | Find similar past incidents | Postgres + pgvector | 🔜 Sprint 4 |
-| Runbook | Match incident to a documented playbook | Runbook markdown files | 🔜 Sprint 4 |
+| Synthesizer | Combine all findings into one report | The other agents' outputs | ✅ Sprint 3 |
+| Topology | Map affected service to dependencies via service graph | `/kb/topology` (kb_links) | ✅ Sprint 4 |
+| History | Find similar past incidents via vector similarity | Postgres + pgvector (kb_documents) | ✅ Sprint 4 |
+| Runbook | Match incident to documented playbook via FTS | Postgres FTS (kb_runbooks) | ✅ Sprint 4 |
 
 ## 1.4 Architecture summary
 
