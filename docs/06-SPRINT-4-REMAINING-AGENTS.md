@@ -278,8 +278,10 @@ With five real findings, the Synthesizer produces a coherent, conflict-aware rep
 2. Confirm the UI shows all five agent panels plus the Synthesizer.
 3. Run the demo; retrospective.
 
-### End-of-day goal — **Sprint 4 complete**
+### End-of-day goal — **Sprint 4 complete** ✅
 An incident that resembles a past one is recognized; a runbook is auto-proposed; all six agents contribute.
+All five Sprint 4 days delivered: KB infrastructure (Day 27), History agent (Day 28), Topology agent (Day 29),
+Runbook agent (Day 30), sprint close + e2e tests + retrospective (Day 31).
 
 ### Test cases
 > **TC-4.10.1** — Full six-agent pipeline

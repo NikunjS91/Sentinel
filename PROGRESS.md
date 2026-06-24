@@ -2,6 +2,25 @@
 
 ## Sprint 4 — Knowledge Base, History, Topology, Runbook
 
+### Day 31 (S4-D5) — Sprint 4 close
+- Done: `SprintFourE2ETest` TC-4.5.1 — 6-agent flow (echo + log_analyzer + metrics + history +
+  topology + runbook) → Synthesizer → RESOLVED + KB write-back delta assertion (exactly 1 new
+  `past_incident` row). TC-4.5.2 — knowledge feedback loop (resolve A → embed → resolve B →
+  History finds A); skip-guarded with `Assumptions.assumeTrue("fixture".equals(TOOL_MODE))` for
+  determinism. `docs/demos/SPRINT-4-KNOWLEDGE-LOOP.md` captured as permanent demo artifact.
+  README refreshed (6-agent count, Runbook ✅, test counts, roadmap Sprint 4 checked).
+  `docs/01-OVERVIEW-AND-ARCHITECTURE.md`, `docs/00-PROJECT-SETUP-REPORT.md`, and
+  `docs/06-SPRINT-4-REMAINING-AGENTS.md` updated. Sprint-4 retrospective written —
+  CI-red incident (PR #28 wrong base branch, corrected via PR #29) included as named lesson.
+  Post-merge `main` CI verified green via GitHub Actions UI. `sprint-4` git tag pushed.
+- Sprint 4 final: 6 specialist agents + Synthesizer, pgvector knowledge base with 3 tables,
+  self-learning feedback loop (resolved incidents → `past_incident` rows → vector search picks
+  them up within 30s). ~85 Java tests, ~60 Python tests, 8 demo-app tests. Architecture: 4
+  planes, 9+ Compose services.
+- Process improvement: post-merge `main` CI verification is now part of every sprint close.
+- Sprint 5 starts: the eval harness. Plus per-severity deadlines, `alert_name` backfill, and
+  DLQ hardening from the Sprint 2-3-4 collected simplifications.
+
 ### Day 30 (S4-D4) — Runbook agent
 - Done: `runbook` agent queries `/kb/runbooks?q=<query>&limit=5` (PostgreSQL full-text search
   via `to_tsvector`/`plainto_tsquery`), asks the LLM whether any returned runbook genuinely

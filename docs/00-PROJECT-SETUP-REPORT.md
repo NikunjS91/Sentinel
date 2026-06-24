@@ -89,7 +89,7 @@ A ticket is done when: code is written and committed; it compiles/runs; its test
 | 1 | Foundation | Alert in → dummy agent → result persisted. End-to-end skeleton, no real intelligence. |
 | 2 | Demo app + first agents | Realistic telemetry; Log Analyzer + Metrics agents produce real findings. |
 | 3 | Synthesis + UI | Synthesizer combines findings; live React dashboard streams the swarm working. |
-| 4 | Full swarm | Topology, History, Runbook agents complete the six-agent swarm. |
+| 4 | Full swarm ✅ | Topology, History, Runbook agents complete the six-agent swarm. pgvector KB + self-learning feedback loop. |
 | 5 | Hardening + eval | Circuit breakers, budgets, evaluation harness, prompt versioning. |
 | 6 | Deploy + polish | Kubernetes, CI/CD, documentation, demo video, resume-ready numbers. |
 
