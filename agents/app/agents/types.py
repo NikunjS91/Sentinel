@@ -77,3 +77,24 @@ class TopologyFinding(BaseModel):
     likely_implicated: list[str] = Field(default_factory=list)
     assessment: str | None = None
     confidence: float = 0.0
+
+
+class RunbookMatch(BaseModel):
+    """One runbook returned by the KB search."""
+
+    id: str
+    title: str
+    summary: str
+    tags: list[str] = Field(default_factory=list)
+
+
+class RunbookFinding(BaseModel):
+    """The Runbook agent's structured output.
+
+    Mirrors the JSON shape its prompt requests."""
+
+    matched_runbooks: list[RunbookMatch] = Field(default_factory=list)
+    best_match_id: str | None = None
+    relevant_steps: list[str] = Field(default_factory=list)
+    assessment: str | None = None
+    confidence: float = 0.0

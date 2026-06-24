@@ -91,8 +91,8 @@ class SprintOneE2ETest {
                 .isEqualTo(IncidentState.DISPATCHED)
         );
 
-        // 3. Simulate the Python worker — publish canned AgentResults for all five agents.
-        // Sprint 4 Day 29: dispatcher sends echo + log_analyzer + metrics + history + topology.
+        // 3. Simulate the Python worker — publish canned AgentResults for all six agents.
+        // Sprint 4 Day 30: dispatcher sends echo + log_analyzer + metrics + history + topology + runbook.
         AgentResult echoResult = new AgentResult(
             id, "echo",
             Map.of("message", "Acknowledged incident for order-api."),
@@ -118,6 +118,11 @@ class SprintOneE2ETest {
             Map.of("neighbors", java.util.List.of(), "likely_implicated", java.util.List.of(), "confidence", 0.0),
             10, 50, "ok", "topo-v1"
         );
+        AgentResult runbookResult = new AgentResult(
+            id, "runbook",
+            Map.of("matched_runbooks", java.util.List.of(), "confidence", 0.0),
+            10, 50, "ok", null
+        );
         kafka.send(KafkaTopicConfig.AGENT_RESULTS,
                    id.toString(),
                    json.writeValueAsString(echoResult)).get();
@@ -133,6 +138,9 @@ class SprintOneE2ETest {
         kafka.send(KafkaTopicConfig.AGENT_RESULTS,
                    id.toString(),
                    json.writeValueAsString(topologyResult)).get();
+        kafka.send(KafkaTopicConfig.AGENT_RESULTS,
+                   id.toString(),
+                   json.writeValueAsString(runbookResult)).get();
 
         // 4. Wait for AGGREGATING (all specialists done; Synthesizer dispatched).
         await().atMost(Duration.ofSeconds(15)).untilAsserted(() ->
@@ -163,12 +171,13 @@ class SprintOneE2ETest {
                 .isEqualTo(IncidentState.RESOLVED)
         );
 
-        // 7. Six traces (5 specialists + synthesizer), one report from synthesizer.
+        // 7. Seven traces (6 specialists + synthesizer), one report from synthesizer.
         assertThat(traces.findByIncidentIdAndAgentName(id, "echo")).isPresent();
         assertThat(traces.findByIncidentIdAndAgentName(id, "log_analyzer")).isPresent();
         assertThat(traces.findByIncidentIdAndAgentName(id, "metrics")).isPresent();
         assertThat(traces.findByIncidentIdAndAgentName(id, "history")).isPresent();
         assertThat(traces.findByIncidentIdAndAgentName(id, "topology")).isPresent();
+        assertThat(traces.findByIncidentIdAndAgentName(id, "runbook")).isPresent();
         assertThat(traces.findByIncidentIdAndAgentName(id, "synthesizer")).isPresent();
         assertThat(reports.count()).isEqualTo(1);
     }

@@ -58,6 +58,6 @@ public class ClassifierListener {
 
         // Sprint 2: dispatch echo + log_analyzer + metrics together.
         // Day 19 replaces this hardcoded list with a capability-based selector.
-        dispatcher.dispatch(inc, List.of("echo", "log_analyzer", "metrics", "history", "topology"));
+        dispatcher.dispatch(inc, List.of("echo", "log_analyzer", "metrics", "history", "topology", "runbook"));
     }
 }

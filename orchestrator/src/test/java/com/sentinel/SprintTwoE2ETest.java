@@ -87,12 +87,12 @@ class SprintTwoE2ETest {
             var inc = incidents.findById(id).orElseThrow();
             assertThat(inc.getState()).isEqualTo(IncidentState.DISPATCHED);
             assertThat(inc.getExpectedAgents())
-                .containsExactlyInAnyOrder("echo", "log_analyzer", "metrics", "history", "topology");
+                .containsExactlyInAnyOrder("echo", "log_analyzer", "metrics", "history", "topology", "runbook");
         });
 
-        // 3. Simulate five specialists reporting back, in non-canonical order.
+        // 3. Simulate six specialists reporting back, in non-canonical order.
         //    Deliberate: aggregator must be order-independent.
-        for (String agent : List.of("metrics", "echo", "log_analyzer", "history", "topology")) {
+        for (String agent : List.of("metrics", "echo", "log_analyzer", "history", "topology", "runbook")) {
             AgentResult result = new AgentResult(
                 id, agent,
                 Map.of("message", agent + " stub e2e result"),
@@ -129,12 +129,13 @@ class SprintTwoE2ETest {
             assertThat(incidents.findById(id).orElseThrow().getState())
                 .isEqualTo(IncidentState.RESOLVED));
 
-        // 7. Six traces (5 specialists + synthesizer), one report from synthesizer.
+        // 7. Seven traces (6 specialists + synthesizer), one report from synthesizer.
         assertThat(traces.findByIncidentIdAndAgentName(id, "echo")).isPresent();
         assertThat(traces.findByIncidentIdAndAgentName(id, "log_analyzer")).isPresent();
         assertThat(traces.findByIncidentIdAndAgentName(id, "metrics")).isPresent();
         assertThat(traces.findByIncidentIdAndAgentName(id, "history")).isPresent();
         assertThat(traces.findByIncidentIdAndAgentName(id, "topology")).isPresent();
+        assertThat(traces.findByIncidentIdAndAgentName(id, "runbook")).isPresent();
         assertThat(traces.findByIncidentIdAndAgentName(id, "synthesizer")).isPresent();
         assertThat(reports.count()).isEqualTo(1);
     }
