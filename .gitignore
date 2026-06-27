@@ -24,6 +24,10 @@ node_modules/
 dist/
 .vite/
 
+# --- Screenshot tooling ---
+tools/screenshots/node_modules/
+tools/screenshots/test-results/
+
 # --- IDEs ---
 .idea/
 .vscode/
