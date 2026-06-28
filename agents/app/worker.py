@@ -92,7 +92,16 @@ class KafkaWorker:
                 status="error",
             )
         else:
-            result = await agent_fn(task, ctx)
+            try:
+                result = await agent_fn(task, ctx)
+            except Exception as exc:
+                log.exception("agent %s failed for incident %s", task.agent_name, task.incident_id)
+                result = AgentResult(
+                    incident_id=task.incident_id,
+                    agent_name=task.agent_name,
+                    output={"error": str(exc)},
+                    status="error",
+                )
 
         assert self._producer is not None
         await self._producer.send_and_wait(

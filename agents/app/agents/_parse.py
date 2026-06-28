@@ -61,7 +61,11 @@ async def call_with_retry(
     instance of the target model)."""
     stats = LLMStats()
 
-    resp = await llm.complete(prompt)
+    try:
+        resp = await llm.complete(prompt)
+    except Exception:
+        log.exception("%s: LLM call failed; returning fallback", agent_name)
+        return fallback, stats
     stats.total_tokens += resp.tokens
     stats.total_latency_ms += resp.latency_ms
     parsed = try_parse(resp.text, model)
@@ -74,7 +78,11 @@ async def call_with_retry(
         "ONLY a single JSON object matching the schema above. No prose, "
         "no markdown fences."
     )
-    resp2 = await llm.complete(nudge)
+    try:
+        resp2 = await llm.complete(nudge)
+    except Exception:
+        log.exception("%s: LLM retry call failed; returning fallback", agent_name)
+        return fallback, stats
     stats.total_tokens += resp2.tokens
     stats.total_latency_ms += resp2.latency_ms
     parsed = try_parse(resp2.text, model)

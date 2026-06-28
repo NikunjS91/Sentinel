@@ -85,22 +85,21 @@ flowchart TB
     subgraph Sources["Alert Sources"]
         AM(Alertmanager)
         DD(Datadog)
-        PD(PagerDuty)
         DA(Demo App)
         SG(Synthetic Gen)
     end
 
-    subgraph CP["Control Plane · Spring Boot (Java)"]
+    subgraph CP["Control Plane — Spring Boot Java"]
         direction TB
         GW[API Gateway]
-        ING[Ingestion\nDedupe · Correlate]
-        SM[Incident State Machine\nRECEIVED → DISPATCHED → SYNTHESIZED]
-        DISP[Dispatcher /\nBudget Governor]
-        AGG[Aggregator /\nReconciler]
+        ING[Ingestion + Dedupe]
+        SM[Incident State Machine]
+        DISP[Dispatcher / Budget Governor]
+        AGG[Aggregator / Reconciler]
         SSE[SSE Endpoint]
     end
 
-    subgraph KAFKA["Kafka Event Log  (partitioned by incident_id)"]
+    subgraph KAFKA["Kafka Event Log — partitioned by incident_id"]
         direction LR
         T1[incidents.raw]
         T2[agent.tasks]
@@ -110,43 +109,40 @@ flowchart TB
         T6[agent.tasks.dlq]
     end
 
-    subgraph AP["Agent Plane · FastAPI (Python)"]
+    subgraph AP["Agent Plane — FastAPI Python"]
         direction TB
-        LLM[LLM Gateway\nRetry · Fallback]
-        subgraph Agents["Agent Workers — Sprint 2–4"]
-            A1[Echo]
-            A2[Log Analyzer]
-            A3[Metrics]
-            A4[Synthesizer]
-            A5[History]
-            A6[Topology]
-        end
-            A7[Runbook]
-        end
+        LLM[LLM Gateway - Retry / Fallback]
+        A1[Echo]
+        A2[Log Analyzer]
+        A3[Metrics]
+        A4[Synthesizer]
+        A5[History]
+        A6[Topology]
+        A7[Runbook]
     end
 
-    subgraph OBS["Observability · Prometheus · Loki · Grafana"]
-        PROM[Prometheus\nPromQL]
-        LOKI[Loki\nLogQL]
+    subgraph OBS["Observability — Prometheus · Loki · Grafana"]
+        PROM[Prometheus]
+        LOKI[Loki]
         GRAF[Grafana]
     end
 
-    subgraph Data["State & Data"]
-        PG[(PostgreSQL\n+ pgvector)]
-        RD[(Redis\nCache · Rate Limits)]
-        S3[(S3\nTranscripts · Replay)]
+    subgraph Data["State and Data"]
+        PG[(PostgreSQL + pgvector)]
+        RD[(Redis)]
+        S3[(S3)]
     end
 
-    subgraph UI["Dashboard · React + Vite"]
-        DASH[Live Incident View\nHuman Approval Gate]
+    subgraph UI["Dashboard — React + Vite"]
+        DASH[Live Incident View / Human Approval]
     end
 
     Sources -->|webhook| GW
     GW --> ING --> SM --> DISP
     DISP -->|agent.tasks| T2
     T2 --> LLM
-    LLM <--> Agents
-    Agents -->|agent.results| T3
+    LLM --> A1 & A2 & A3 & A4 & A5 & A6 & A7
+    A1 & A2 & A3 & A4 & A5 & A6 & A7 -->|agent.results| T3
     T3 --> AGG --> SSE
     SSE -->|SSE stream| DASH
     AGG -->|incidents.synthesized| T4

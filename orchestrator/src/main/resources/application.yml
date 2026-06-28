@@ -38,7 +38,7 @@ management:
 
 sentinel:
   incident:
-    default-deadline-seconds: 60
+    default-deadline-seconds: 600
     sweeper-interval-ms: 5000
   ui:
     cors-origin: "http://localhost:5173"
