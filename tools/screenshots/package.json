@@ -1,0 +1,12 @@
+{
+  "name": "sentinel-screenshots",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "capture": "node capture.mjs",
+    "capture:headed": "HEADED=1 node capture.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.44.0"
+  }
+}

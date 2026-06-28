@@ -1,10 +1,47 @@
 # Sentinel
 
-**An AI agent swarm that triages production incidents in seconds instead of minutes.**
+> Multi-agent AI incident-triage swarm with a self-learning knowledge base.
 
-When a system breaks at 3 AM, an on-call engineer normally spends 20–40 minutes digging through logs, metrics, dashboards, and old tickets just to *understand* the problem. Sentinel replaces that first half-hour with a team of specialized AI agents that investigate in parallel and hand the engineer a single, clear diagnosis with a recommended fix.
+![Sentinel dashboard showing six-agent incident triage in progress](docs/screenshots/01-dashboard-hero.png)
 
-> **Project status:** Sprint 4 complete — 6-agent swarm with pgvector knowledge base and self-learning feedback loop. History (vector similarity), Topology (service-graph), and Runbook (PostgreSQL FTS) agents added. Every resolved incident writes back to the KB as training data for the next. ~85 Java tests, 60 Python tests, 8 demo-app tests, all green. Four CI jobs on every PR. See [What's built](#whats-built) for the current state and [Roadmap](#roadmap) for the full plan.
+Six specialist AI agents diagnose incidents in parallel — logs, metrics, history, topology,
+runbooks. A Synthesizer combines their findings into a single calibrated report with explicit
+dissent notes when they disagree. Every operator-reviewed incident becomes labeled training
+data, captured in a pgvector-backed knowledge base that the History agent searches on future
+incidents.
+
+**Status:** Sprint 4 complete — 145+ tests across two languages, ruff + mypy clean,
+four parallel CI jobs green on `main`.
+[See the sprint retrospectives →](docs/retrospectives/)
+
+---
+
+## What it looks like
+
+### Resolved incident — root cause, confidence, and dissent notes
+
+![Expanded incident showing Synthesizer report with contributing agents and dissent notes](docs/screenshots/02-incident-expanded.png)
+
+The Synthesizer's report includes a calibrated confidence score and **dissent notes** — explicit
+acknowledgments when specialists reached different conclusions. On a `slow_query` incident, the
+Log Analyzer reports low confidence (metrics-only signal) while the Metrics agent reports high
+confidence with concrete p95 evidence. The Synthesizer names that disagreement rather than
+averaging it away.
+
+### SRE working queue (filter: undecided)
+
+![Filter bar showing only incidents awaiting human review](docs/screenshots/03-filter-undecided.png)
+
+Filter by state, service, decision status, or free-text. The URL is bookmarkable — share
+`?decision=undecided` to point a teammate at the review queue.
+
+### Human-in-the-loop edit
+
+![Edit form with operator overriding the AI's recommended action](docs/screenshots/05-edit-form.png)
+
+Operators can accept the AI's report, reject it with a reason, or edit specific fields. The
+original AI output is *preserved alongside* the human edit — every correction becomes a labeled
+training example for the Sprint 5 eval harness.
 
 ---
 
@@ -48,22 +85,21 @@ flowchart TB
     subgraph Sources["Alert Sources"]
         AM(Alertmanager)
         DD(Datadog)
-        PD(PagerDuty)
         DA(Demo App)
         SG(Synthetic Gen)
     end
 
-    subgraph CP["Control Plane · Spring Boot (Java)"]
+    subgraph CP["Control Plane — Spring Boot Java"]
         direction TB
         GW[API Gateway]
-        ING[Ingestion\nDedupe · Correlate]
-        SM[Incident State Machine\nRECEIVED → DISPATCHED → SYNTHESIZED]
-        DISP[Dispatcher /\nBudget Governor]
-        AGG[Aggregator /\nReconciler]
+        ING[Ingestion + Dedupe]
+        SM[Incident State Machine]
+        DISP[Dispatcher / Budget Governor]
+        AGG[Aggregator / Reconciler]
         SSE[SSE Endpoint]
     end
 
-    subgraph KAFKA["Kafka Event Log  (partitioned by incident_id)"]
+    subgraph KAFKA["Kafka Event Log — partitioned by incident_id"]
         direction LR
         T1[incidents.raw]
         T2[agent.tasks]
@@ -73,43 +109,40 @@ flowchart TB
         T6[agent.tasks.dlq]
     end
 
-    subgraph AP["Agent Plane · FastAPI (Python)"]
+    subgraph AP["Agent Plane — FastAPI Python"]
         direction TB
-        LLM[LLM Gateway\nRetry · Fallback]
-        subgraph Agents["Agent Workers — Sprint 2–4"]
-            A1[Echo]
-            A2[Log Analyzer]
-            A3[Metrics]
-            A4[Synthesizer]
-            A5[History]
-            A6[Topology]
-        end
-            A7[Runbook]
-        end
+        LLM[LLM Gateway - Retry / Fallback]
+        A1[Echo]
+        A2[Log Analyzer]
+        A3[Metrics]
+        A4[Synthesizer]
+        A5[History]
+        A6[Topology]
+        A7[Runbook]
     end
 
-    subgraph OBS["Observability · Prometheus · Loki · Grafana"]
-        PROM[Prometheus\nPromQL]
-        LOKI[Loki\nLogQL]
+    subgraph OBS["Observability — Prometheus · Loki · Grafana"]
+        PROM[Prometheus]
+        LOKI[Loki]
         GRAF[Grafana]
     end
 
-    subgraph Data["State & Data"]
-        PG[(PostgreSQL\n+ pgvector)]
-        RD[(Redis\nCache · Rate Limits)]
-        S3[(S3\nTranscripts · Replay)]
+    subgraph Data["State and Data"]
+        PG[(PostgreSQL + pgvector)]
+        RD[(Redis)]
+        S3[(S3)]
     end
 
-    subgraph UI["Dashboard · React + Vite"]
-        DASH[Live Incident View\nHuman Approval Gate]
+    subgraph UI["Dashboard — React + Vite"]
+        DASH[Live Incident View / Human Approval]
     end
 
     Sources -->|webhook| GW
     GW --> ING --> SM --> DISP
     DISP -->|agent.tasks| T2
     T2 --> LLM
-    LLM <--> Agents
-    Agents -->|agent.results| T3
+    LLM --> A1 & A2 & A3 & A4 & A5 & A6 & A7
+    A1 & A2 & A3 & A4 & A5 & A6 & A7 -->|agent.results| T3
     T3 --> AGG --> SSE
     SSE -->|SSE stream| DASH
     AGG -->|incidents.synthesized| T4
@@ -221,7 +254,7 @@ cd ui && npm install && npm run dev
 curl -i -X POST http://localhost:8080/alerts \
   -H 'Content-Type: application/json' \
   -d @sample-alert.json
-# → 201 Created  (new incident, dispatches echo + log_analyzer + metrics + history + topology)
+# → 201 Created  (new incident, dispatches echo + log_analyzer + metrics + history + topology + runbook)
 # → Same curl again → 200 OK (deduplicated — same incident ID returned)
 # Dashboard: state pill cycles RECEIVED → DISPATCHED → AGGREGATING → RESOLVED
 # Click the incident to expand: summary, root cause, confidence, dissent notes
@@ -231,12 +264,13 @@ curl -i -X POST http://localhost:8080/alerts \
 curl -s -X POST http://localhost:8090/admin/failure-mode \
   -H 'Content-Type: application/json' -d '{"mode":"slow_query"}'
 # Metrics agent ≈0.88 confidence vs Log Analyzer ≈0.15 — visible in dissent notes
-# See docs/demos/SPRINT-2-SWARM-ASYMMETRY.md for the full demo script
-# See docs/demos/SPRINT-3-HUMAN-IN-LOOP.md for the human-in-the-loop demo script
+# See docs/demos/SPRINT-2-SWARM-ASYMMETRY.md for the swarm asymmetry demo
+# See docs/demos/SPRINT-3-HUMAN-IN-LOOP.md for the human-in-the-loop demo
+# See docs/demos/SPRINT-4-KNOWLEDGE-LOOP.md for the knowledge feedback loop demo
 
 # Run all tests (requires Docker)
-cd orchestrator && ./mvnw verify             # ~82 Java tests
-cd ../agents && ruff check . && mypy . && pytest  # 54 Python tests
+cd orchestrator && ./mvnw verify             # ~85 Java tests
+cd ../agents && ruff check . && mypy . && pytest  # ~60 Python tests
 cd ../demo-app && mvn verify                 # 8 demo-app tests
 cd ../ui && npm run build                    # TypeScript + Vite build gate
 ```

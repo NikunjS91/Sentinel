@@ -9,7 +9,7 @@ def make_llm_client(settings: Settings) -> LLMClient:
     """Select the LLM backend from settings.llm_backend."""
     backend = settings.llm_backend.lower()
     if backend == "ollama":
-        return OllamaClient(settings.ollama_host, settings.ollama_model)
+        return OllamaClient(settings.ollama_host, settings.ollama_model, timeout_s=600.0)
     if backend == "anthropic":
         return AnthropicClient(settings.anthropic_api_key, settings.anthropic_model)
     if backend == "groq":

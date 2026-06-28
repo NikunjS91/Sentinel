@@ -117,11 +117,18 @@ async def _search_kb(embedding: list[float]) -> list[dict[str, object]]:
 
 
 def _to_matched(c: dict[str, object]) -> MatchedIncident:
+    meta = c.get("metadata") or {}
+    if isinstance(meta, str):
+        import json as _json
+        try:
+            meta = _json.loads(meta)
+        except Exception:  # noqa: BLE001
+            meta = {}
     return MatchedIncident(
         id=str(c.get("id", "")),
         title=str(c.get("title", "")),
         distance=float(c.get("distance", 1.0)),  # type: ignore[arg-type]
-        metadata=c.get("metadata") or {},
+        metadata=meta,
     )
 
 
