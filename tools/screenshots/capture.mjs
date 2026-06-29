@@ -34,9 +34,13 @@ const ctx = await browser.newContext({ viewport: VIEWPORT });
 const page = await ctx.newPage();
 
 async function goto() {
-  await page.goto(UI, { waitUntil: 'networkidle' });
-  // Give SSE stream time to populate incidents.
-  await page.waitForTimeout(2000);
+  // Use 'load' not 'networkidle' — SSE keeps connections open forever.
+  await page.goto(UI, { waitUntil: 'load', timeout: 15000 });
+  // Wait for SSE to connect and populate incidents (indicator turns green / "live").
+  try {
+    await page.waitForSelector('span.conn-indicator', { timeout: 8000 });
+  } catch {}
+  await page.waitForTimeout(4000);
 }
 
 async function snap(name) {
@@ -57,11 +61,28 @@ console.log('Capturing Sentinel UI screenshots...\n');
 await goto();
 await snap('01-dashboard-hero');
 
-// ── 2. Expanded incident — click the first card to expand detail ─────────────
+// ── 2. Expanded incident — click first PARTIAL/RESOLVED card for rich detail ──
 await goto();
-const firstIncident = page.locator('article.incident').first();
-await firstIncident.click();
-await page.waitForTimeout(800);
+const allIncidents = page.locator('article.incident');
+const incCount = await allIncidents.count();
+let expanded = false;
+// Prefer a terminal incident (PARTIAL/RESOLVED) for richer detail view.
+for (const keyword of ['PARTIAL', 'RESOLVED', 'AGGREGATING']) {
+  if (expanded) break;
+  for (let i = 0; i < incCount && !expanded; i++) {
+    const card = allIncidents.nth(i);
+    const text = await card.textContent();
+    if (text && text.includes(keyword)) {
+      await card.click();
+      await page.waitForTimeout(1000);
+      expanded = true;
+    }
+  }
+}
+if (!expanded) {
+  await allIncidents.first().click();
+  await page.waitForTimeout(1000);
+}
 await snap('02-incident-expanded');
 
 // ── 3. Filter: undecided SRE queue ───────────────────────────────────────────
