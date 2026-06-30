@@ -35,9 +35,9 @@ averaging it away.
 Filter by state, service, decision status, or free-text. The URL is bookmarkable — share
 `?decision=undecided` to point a teammate at the review queue.
 
-### Human-in-the-loop edit
+### Resolved incidents — terminal state view
 
-![Edit form with operator overriding the AI's recommended action](docs/screenshots/05-edit-form.png)
+![Dashboard filtered to show only resolved incidents](docs/screenshots/04-filter-resolved.png)
 
 Operators can accept the AI's report, reject it with a reason, or edit specific fields. The
 original AI output is *preserved alongside* the human edit — every correction becomes a labeled
@@ -89,7 +89,7 @@ flowchart TB
         SG(Synthetic Gen)
     end
 
-    subgraph CP["Control Plane — Spring Boot Java"]
+    subgraph CP["Control Plane - Spring Boot Java"]
         direction TB
         GW[API Gateway]
         ING[Ingestion + Dedupe]
@@ -99,7 +99,7 @@ flowchart TB
         SSE[SSE Endpoint]
     end
 
-    subgraph KAFKA["Kafka Event Log — partitioned by incident_id"]
+    subgraph KAFKA["Kafka Event Log - partitioned by incident_id"]
         direction LR
         T1[incidents.raw]
         T2[agent.tasks]
@@ -109,7 +109,7 @@ flowchart TB
         T6[agent.tasks.dlq]
     end
 
-    subgraph AP["Agent Plane — FastAPI Python"]
+    subgraph AP["Agent Plane - FastAPI Python"]
         direction TB
         LLM[LLM Gateway - Retry / Fallback]
         A1[Echo]
@@ -121,7 +121,7 @@ flowchart TB
         A7[Runbook]
     end
 
-    subgraph OBS["Observability — Prometheus · Loki · Grafana"]
+    subgraph OBS["Observability - Prometheus + Loki + Grafana"]
         PROM[Prometheus]
         LOKI[Loki]
         GRAF[Grafana]
@@ -133,25 +133,27 @@ flowchart TB
         S3[(S3)]
     end
 
-    subgraph UI["Dashboard — React + Vite"]
+    subgraph UI["Dashboard - React + Vite"]
         DASH[Live Incident View / Human Approval]
     end
 
     Sources -->|webhook| GW
     GW --> ING --> SM --> DISP
     DISP -->|agent.tasks| T2
-    T2 --> LLM
-    LLM --> A1 & A2 & A3 & A4 & A5 & A6 & A7
+    T2 --> A1 & A2 & A3 & A4 & A5 & A6 & A7
+    A1 & A2 & A3 & A4 & A5 & A6 & A7 --> LLM
     A1 & A2 & A3 & A4 & A5 & A6 & A7 -->|agent.results| T3
     T3 --> AGG --> SSE
     SSE -->|SSE stream| DASH
     AGG -->|incidents.synthesized| T4
     SM <--> PG
     AGG <--> PG
-    CP <--> RD
-    AP --> S3
-    DA -->|metrics + logs| OBS
-    AP -->|PromQL / LogQL| OBS
+    DISP <--> RD
+    A5 --> S3
+    DA -->|metrics| PROM
+    DA -->|logs| LOKI
+    A2 -->|LogQL| LOKI
+    A3 -->|PromQL| PROM
     PROM --> GRAF
     LOKI --> GRAF
 ```
@@ -227,7 +229,7 @@ flowchart TB
 
 ## Getting started
 
-> Prerequisites: Java 21, Node 18+, Python 3.11, Docker, [Ollama](https://ollama.ai) with `mistral` pulled (`ollama pull mistral`).
+> Prerequisites: Java 21, Node 18+, Python 3.11, Docker, [Ollama](https://ollama.ai) with `qwen3:14b` pulled (`ollama pull qwen3:14b`).
 
 ```bash
 # Clone
