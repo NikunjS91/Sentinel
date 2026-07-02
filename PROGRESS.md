@@ -1,5 +1,27 @@
 # Sentinel — Progress Log
 
+## Sprint 5 — Reliability + Eval Harness
+
+### Day 32 (S5-D1) — Rehydration + reliability floor
+- Done: cleared stale Sprint 4 state (Level 1 cleanup — 13 incidents force-transitioned to
+  PARTIAL). Smoke test fired (fingerprint `d32-smoke-1`, `slow_query` mode, `orders-svc`).
+  **Outcome C** — incident never reached terminal state within 28 min (deadline 600s). Sweeper
+  fired correctly at t≈598s → AGGREGATING_PARTIAL → Synthesizer dispatched, but Synthesizer
+  LLM call never completed. Root cause: qwen3:14b too slow on CPU-only hardware; all 7 LLM
+  calls (6 specialists + Synthesizer) serialized through one Ollama process.
+- Instrumentation added: `agents/app/metrics.py` — `sentinel_agent_timeouts_total` Counter +
+  `sentinel_agent_llm_latency_seconds` Histogram wired into `_parse.py` except blocks. FastAPI
+  `/metrics` endpoint exposed via `prometheus_client`. Orchestrator: `micrometer-registry-
+  prometheus` added to `pom.xml`, `/actuator/prometheus` exposed in `application.yml`,
+  `DeadlineSweeper` now increments `sentinel_deadline_breaches_total` on every sweep transition.
+- Baseline highlights: 0 of 6 specialists completed before deadline; `latency_ms=0` in
+  agent_traces for all agents (LLM timeouts); 1 deadline breach; DLQ empty.
+  See `docs/RELIABILITY-BASELINE.md` for full numbers.
+- Tests: TC-5.1.1 (deadline breach counter) added to `DeadlineSweeperTest.java`;
+  TC-5.1.2 (agent timeout counter) added as `test_metrics.py` — both pass.
+- Next: Day 33 — model ladder. `qwen2.5:3b` for 6 specialists, `qwen3:14b` for Synthesizer
+  only. Per-agent HTTP timeouts. Target: p95 incident wall-clock under 300s.
+
 ## Sprint 4 — Knowledge Base, History, Topology, Runbook
 
 ### Day 31 (S4-D5) — Sprint 4 close

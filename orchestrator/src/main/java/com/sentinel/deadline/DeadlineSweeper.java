@@ -7,6 +7,8 @@ import com.sentinel.incident.Incident;
 import com.sentinel.incident.IncidentRepository;
 import com.sentinel.incident.IncidentState;
 import com.sentinel.incident.IncidentStateMachine;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -28,17 +30,22 @@ public class DeadlineSweeper {
     private final IncidentStateMachine stateMachine;
     private final Dispatcher dispatcher;
     private final SynthesizerTaskBuilder synthesizerTaskBuilder;
+    private final Counter deadlineBreaches;
 
     public DeadlineSweeper(IncidentRepository incidents,
                            AgentTraceRepository traces,
                            IncidentStateMachine stateMachine,
                            Dispatcher dispatcher,
-                           SynthesizerTaskBuilder synthesizerTaskBuilder) {
+                           SynthesizerTaskBuilder synthesizerTaskBuilder,
+                           MeterRegistry registry) {
         this.incidents = incidents;
         this.traces = traces;
         this.stateMachine = stateMachine;
         this.dispatcher = dispatcher;
         this.synthesizerTaskBuilder = synthesizerTaskBuilder;
+        this.deadlineBreaches = Counter.builder("sentinel_deadline_breaches_total")
+                .description("Incidents transitioned to PARTIAL due to deadline expiry")
+                .register(registry);
     }
 
     @Scheduled(fixedDelayString = "${sentinel.incident.sweeper-interval-ms:5000}")
@@ -59,6 +66,7 @@ public class DeadlineSweeper {
             return;
         }
 
+        deadlineBreaches.increment();
         stateMachine.transition(inc, IncidentState.AGGREGATING_PARTIAL);
         incidents.save(inc);
 

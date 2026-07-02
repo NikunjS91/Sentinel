@@ -8,6 +8,7 @@ import com.sentinel.incident.AgentTrace;
 import com.sentinel.incident.Incident;
 import com.sentinel.incident.IncidentRepository;
 import com.sentinel.incident.IncidentState;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.TopicPartition;
@@ -63,6 +64,7 @@ class DeadlineSweeperTest {
     @Autowired DeadlineSweeper sweeper;
     @Autowired JdbcTemplate jdbc;
     @Autowired ObjectMapper objectMapper;
+    @Autowired MeterRegistry meterRegistry;
 
     @BeforeEach
     void cleanDb() {
@@ -226,5 +228,17 @@ class DeadlineSweeperTest {
 
         Incident updated = incidentRepository.findById(inc.getId()).orElseThrow();
         assertThat(updated.getState()).isEqualTo(IncidentState.AGGREGATING_PARTIAL);
+    }
+
+    // TC-5.1.1: deadline breach counter increments when sweep() transitions an overdue incident
+    @Test
+    void tc_5_1_1_deadline_breach_counter_increments() {
+        buildOverdueDispatchedIncident(List.of("echo", "log_analyzer", "metrics"));
+
+        double before = meterRegistry.counter("sentinel_deadline_breaches_total").count();
+        sweeper.sweep();
+        double after = meterRegistry.counter("sentinel_deadline_breaches_total").count();
+
+        assertThat(after).isEqualTo(before + 1);
     }
 }
