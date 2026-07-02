@@ -16,6 +16,7 @@ from typing import TypeVar
 from pydantic import BaseModel, ValidationError
 
 from ..llm.base import LLMClient
+from ..metrics import AGENT_LLM_LATENCY, AGENT_TIMEOUTS
 
 log = logging.getLogger(__name__)
 
@@ -64,10 +65,12 @@ async def call_with_retry(
     try:
         resp = await llm.complete(prompt)
     except Exception:
+        AGENT_TIMEOUTS.labels(agent_name=agent_name).inc()
         log.exception("%s: LLM call failed; returning fallback", agent_name)
         return fallback, stats
     stats.total_tokens += resp.tokens
     stats.total_latency_ms += resp.latency_ms
+    AGENT_LLM_LATENCY.labels(agent_name=agent_name).observe(resp.latency_ms / 1000)
     parsed = try_parse(resp.text, model)
     if parsed is not None:
         return parsed, stats
@@ -81,10 +84,12 @@ async def call_with_retry(
     try:
         resp2 = await llm.complete(nudge)
     except Exception:
+        AGENT_TIMEOUTS.labels(agent_name=agent_name).inc()
         log.exception("%s: LLM retry call failed; returning fallback", agent_name)
         return fallback, stats
     stats.total_tokens += resp2.tokens
     stats.total_latency_ms += resp2.latency_ms
+    AGENT_LLM_LATENCY.labels(agent_name=agent_name).observe(resp2.latency_ms / 1000)
     parsed = try_parse(resp2.text, model)
     if parsed is not None:
         return parsed, stats

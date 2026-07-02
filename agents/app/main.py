@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from typing import cast
 
 from fastapi import FastAPI
+from prometheus_client import make_asgi_app
 
 from .db import upsert_prompt_versions
 from .embedding.backfill_task import EmbeddingBackfillTask
@@ -40,6 +41,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 app = FastAPI(title="Sentinel Agents", lifespan=lifespan)
+app.mount("/metrics", make_asgi_app())
 
 
 @app.get("/health")
