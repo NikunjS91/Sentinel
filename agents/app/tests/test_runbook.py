@@ -60,7 +60,9 @@ class _FakeLLM(LLMClient):
     def __init__(self, response_text: str = _LLM_RUNBOOK_JSON) -> None:
         self._response_text = response_text
 
-    async def complete(self, prompt: str, **_: object) -> LLMResponse:
+    async def complete(
+        self, prompt: str, model: str | None = None, timeout_s: float | None = None
+    ) -> LLMResponse:  # noqa: ARG002
         return LLMResponse(
             text=self._response_text,
             tokens=30,
@@ -90,6 +92,7 @@ def _ctx(llm: LLMClient) -> AgentContext:
 # TC-4.4.1: happy path — runbooks returned, LLM parses, best_match_id set
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_tc_4_4_1_happy_path() -> None:
     with patch("app.agents.runbook._fetch_runbooks", new=AsyncMock(return_value=_RUNBOOK_RESPONSE)):
@@ -105,6 +108,7 @@ async def test_tc_4_4_1_happy_path() -> None:
 # ---------------------------------------------------------------------------
 # TC-4.4.2: no candidates — LLM never called, confidence=0.0
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_tc_4_4_2_no_candidates_skips_llm() -> None:
@@ -124,6 +128,7 @@ async def test_tc_4_4_2_no_candidates_skips_llm() -> None:
 # TC-4.4.3: LLM returns garbage — fallback used, matched_runbooks filled
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_tc_4_4_3_llm_unparseable_uses_fallback() -> None:
     with patch("app.agents.runbook._fetch_runbooks", new=AsyncMock(return_value=_RUNBOOK_RESPONSE)):
@@ -137,6 +142,7 @@ async def test_tc_4_4_3_llm_unparseable_uses_fallback() -> None:
 # ---------------------------------------------------------------------------
 # TC-4.4.4: httpx.ReadTimeout → graceful fallback, no exception raised
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_tc_4_4_4_timeout_returns_empty_gracefully() -> None:
@@ -156,6 +162,7 @@ async def test_tc_4_4_4_timeout_returns_empty_gracefully() -> None:
 # ---------------------------------------------------------------------------
 # TC-4.4.5: agent_name is "runbook"
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_tc_4_4_5_agent_name() -> None:

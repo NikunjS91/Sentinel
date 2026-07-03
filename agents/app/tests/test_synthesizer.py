@@ -85,7 +85,9 @@ class _FakeLLM(LLMClient):
         self._responses = list(responses)
         self._index = 0
 
-    async def complete(self, prompt: str) -> LLMResponse:
+    async def complete(
+        self, prompt: str, model: str | None = None, timeout_s: float | None = None
+    ) -> LLMResponse:  # noqa: ARG002
         text = self._responses[self._index % len(self._responses)]
         self._index += 1
         return LLMResponse(text=text, tokens=100, latency_ms=500)
@@ -99,6 +101,7 @@ def _ctx(llm: LLMClient) -> AgentContext:
 # ---------------------------------------------------------------------------
 # TC-3.1.1: happy path — structured report produced
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_tc_3_1_1_synthesizer_happy_path() -> None:
@@ -116,6 +119,7 @@ async def test_tc_3_1_1_synthesizer_happy_path() -> None:
 # TC-3.1.2: asymmetric inputs produce a dissenting note
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_tc_3_1_2_asymmetric_inputs_produce_dissenting_note() -> None:
     synthesis_with_dissent = dict(_VALID_SYNTHESIS)
@@ -132,6 +136,7 @@ async def test_tc_3_1_2_asymmetric_inputs_produce_dissenting_note() -> None:
 # ---------------------------------------------------------------------------
 # TC-3.1.3: persistent parse failure preserves contributing_agents
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_tc_3_1_3_parse_failure_preserves_contributing_agents() -> None:

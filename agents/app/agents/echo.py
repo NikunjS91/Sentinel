@@ -1,3 +1,4 @@
+from ..llm.model_registry import resolve_agent_spec
 from ..models import AgentResult, AgentTask
 from ._context import AgentContext
 
@@ -10,8 +11,9 @@ async def echo_agent(task: AgentTask, ctx: AgentContext) -> AgentResult:
         f"that an incident was received for service '{task.service}'. "
         "Do not speculate about causes."
     )
+    spec = resolve_agent_spec("echo")
     try:
-        resp = await ctx.llm.complete(prompt)
+        resp = await ctx.llm.complete(prompt, model=spec.model, timeout_s=spec.timeout_s)
         return AgentResult(
             incident_id=task.incident_id,
             agent_name=task.agent_name,

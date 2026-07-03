@@ -12,6 +12,7 @@ from app.llm.base import LLMClient, LLMResponse
 # Fake LLM
 # ---------------------------------------------------------------------------
 
+
 class _FakeLLM(LLMClient):
     """Returns a fixed sequence of responses."""
 
@@ -19,7 +20,9 @@ class _FakeLLM(LLMClient):
         # Each item: (text, tokens, latency_ms)
         self._queue = list(responses)
 
-    async def complete(self, prompt: str) -> LLMResponse:
+    async def complete(
+        self, prompt: str, model: str | None = None, timeout_s: float | None = None
+    ) -> LLMResponse:  # noqa: ARG002
         text, tokens, latency = self._queue.pop(0)
         return LLMResponse(text=text, tokens=tokens, latency_ms=latency)
 
@@ -33,6 +36,7 @@ _VALID_JSON = (
 # ---------------------------------------------------------------------------
 # TC-2.9.1: try_parse handles raw, fenced, and prose-wrapped JSON
 # ---------------------------------------------------------------------------
+
 
 def test_tc_2_9_1_try_parse_raw_json() -> None:
     result = try_parse(_VALID_JSON, MetricsAgentFinding)
@@ -63,27 +67,32 @@ def test_tc_2_9_1_try_parse_returns_none_on_garbage() -> None:
 # TC-2.9.2: call_with_retry accumulates tokens across retry
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_tc_2_9_2_call_with_retry_accumulates_tokens() -> None:
     # First call returns garbage (10 tokens), second returns valid JSON (20 tokens).
-    llm = _FakeLLM([
-        ("garbage", 10, 100),
-        (_VALID_JSON, 20, 200),
-    ])
+    llm = _FakeLLM(
+        [
+            ("garbage", 10, 100),
+            (_VALID_JSON, 20, 200),
+        ]
+    )
     fallback = MetricsAgentFinding()
     result, stats = await call_with_retry(llm, "prompt", MetricsAgentFinding, fallback, "test")
 
     assert result.slo_status == "violations_present"
-    assert stats.total_tokens == 30   # 10 + 20
+    assert stats.total_tokens == 30  # 10 + 20
     assert stats.total_latency_ms == 300  # 100 + 200
 
 
 @pytest.mark.asyncio
 async def test_tc_2_9_2_call_with_retry_returns_fallback_on_double_failure() -> None:
-    llm = _FakeLLM([
-        ("garbage", 5, 50),
-        ("still garbage", 5, 50),
-    ])
+    llm = _FakeLLM(
+        [
+            ("garbage", 5, 50),
+            ("still garbage", 5, 50),
+        ]
+    )
     fallback = MetricsAgentFinding(slo_status="ok", confidence=0.0)
     result, stats = await call_with_retry(llm, "prompt", MetricsAgentFinding, fallback, "test")
 

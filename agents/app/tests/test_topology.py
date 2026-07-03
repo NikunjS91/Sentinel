@@ -49,7 +49,9 @@ class _FakeLLM(LLMClient):
     def __init__(self, response_text: str = _LLM_TOPOLOGY_JSON) -> None:
         self._response_text = response_text
 
-    async def complete(self, prompt: str, **_: object) -> LLMResponse:
+    async def complete(
+        self, prompt: str, model: str | None = None, timeout_s: float | None = None
+    ) -> LLMResponse:  # noqa: ARG002
         return LLMResponse(
             text=self._response_text,
             tokens=30,
@@ -75,6 +77,7 @@ def _ctx(llm: LLMClient) -> AgentContext:
 # TC-4.3.1: happy path — 3 neighbors returned, prompt_version set, assessment non-null
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_tc_4_3_1_happy_path_three_neighbors() -> None:
     with patch("app.agents.topology._fetch_topology", new=AsyncMock(return_value=_TOPO_RESPONSE)):
@@ -89,6 +92,7 @@ async def test_tc_4_3_1_happy_path_three_neighbors() -> None:
 # ---------------------------------------------------------------------------
 # TC-4.3.2: empty topology — no LLM call, neighbors=[], confidence=0.0
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_tc_4_3_2_empty_topology_skips_llm() -> None:
@@ -107,6 +111,7 @@ async def test_tc_4_3_2_empty_topology_skips_llm() -> None:
 # ---------------------------------------------------------------------------
 # TC-4.3.3: httpx.TimeoutException → graceful fallback, no exception raised
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_tc_4_3_3_timeout_returns_empty_gracefully() -> None:
@@ -127,6 +132,7 @@ async def test_tc_4_3_3_timeout_returns_empty_gracefully() -> None:
 # TC-4.3.4: LLM returns neighbors=[] → post-guard fills from _fetch_topology result
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_tc_4_3_4_postguard_fills_neighbors_when_llm_returns_empty() -> None:
     empty_neighbors_json = """{
@@ -145,6 +151,7 @@ async def test_tc_4_3_4_postguard_fills_neighbors_when_llm_returns_empty() -> No
 # ---------------------------------------------------------------------------
 # TC-4.3.5: _flatten_neighbors direction test — 2 outgoing + 1 incoming
 # ---------------------------------------------------------------------------
+
 
 def test_tc_4_3_5_flatten_neighbors_directions() -> None:
     neighbors = _flatten_neighbors(_TOPO_RESPONSE)

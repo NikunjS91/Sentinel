@@ -46,7 +46,9 @@ class _FakeLLM(LLMClient):
         self._tokens = tokens
         self._latency_ms = latency_ms
 
-    async def complete(self, prompt: str) -> LLMResponse:
+    async def complete(
+        self, prompt: str, model: str | None = None, timeout_s: float | None = None
+    ) -> LLMResponse:  # noqa: ARG002
         resp = self._responses[min(self._call_count, len(self._responses) - 1)]
         self._call_count += 1
         return LLMResponse(text=resp, tokens=self._tokens, latency_ms=self._latency_ms)
@@ -68,6 +70,7 @@ def _ollama_reachable() -> bool:
 # ---------------------------------------------------------------------------
 # TC-2.8.1: happy path — valid JSON on first LLM call
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_tc_2_8_1_happy_path(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -93,6 +96,7 @@ async def test_tc_2_8_1_happy_path(monkeypatch: pytest.MonkeyPatch) -> None:
 # TC-2.8.2: malformed first call, valid second call — tokens are cumulative
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_tc_2_8_2_retry_on_malformed(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "tool_mode", "fixture")
@@ -106,13 +110,14 @@ async def test_tc_2_8_2_retry_on_malformed(monkeypatch: pytest.MonkeyPatch) -> N
     assert result.status == "ok"
     assert result.output["most_likely_symptom"] == "payment-gateway unreachable"
     assert llm._call_count == 2
-    assert result.tokens_used == 30   # 15 + 15
-    assert result.latency_ms == 160   # 80 + 80
+    assert result.tokens_used == 30  # 15 + 15
+    assert result.latency_ms == 160  # 80 + 80
 
 
 # ---------------------------------------------------------------------------
 # TC-2.8.3: both calls return garbage — fallback with confidence=0
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_tc_2_8_3_persistent_parse_failure(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -134,6 +139,7 @@ async def test_tc_2_8_3_persistent_parse_failure(monkeypatch: pytest.MonkeyPatch
 # TC-2.8.4: code fences stripped, parsed on first attempt
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_tc_2_8_4_code_fences_stripped(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "tool_mode", "fixture")
@@ -154,12 +160,14 @@ async def test_tc_2_8_4_code_fences_stripped(monkeypatch: pytest.MonkeyPatch) ->
 # TC-2.8.5: live Ollama integration (skip-guarded)
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 @pytest.mark.skipif(not _ollama_reachable(), reason="Ollama not available")
 async def test_tc_2_8_5_live_ollama(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "tool_mode", "fixture")
 
     from app.llm.factory import make_llm_client
+
     llm = make_llm_client(settings)
     registry = _real_registry()
     task = _make_task(service="demo-app")

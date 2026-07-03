@@ -73,7 +73,9 @@ class _FakeLLM(LLMClient):
         self._responses = list(responses)
         self._index = 0
 
-    async def complete(self, prompt: str) -> LLMResponse:
+    async def complete(
+        self, prompt: str, model: str | None = None, timeout_s: float | None = None
+    ) -> LLMResponse:  # noqa: ARG002
         text = self._responses[self._index % len(self._responses)]
         self._index += 1
         return LLMResponse(text=text, tokens=80, latency_ms=300)
@@ -101,6 +103,7 @@ def _ctx(llm: LLMClient, embedder: EmbeddingClient | None = None) -> AgentContex
 # TC-4.2.1: fixture embedder + 3 KB candidates → matched_incidents, prompt_version, assessment
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_tc_4_2_1_happy_path_with_kb_candidates() -> None:
     llm = _FakeLLM([json.dumps(_VALID_FINDING)])
@@ -120,12 +123,15 @@ async def test_tc_4_2_1_happy_path_with_kb_candidates() -> None:
 # TC-4.2.2: /kb/search returns [] → no LLM call, empty matched_incidents, confidence 0.0
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_tc_4_2_2_empty_kb_returns_no_match() -> None:
     llm_called = False
 
     class _TrackingLLM(LLMClient):
-        async def complete(self, prompt: str) -> LLMResponse:
+        async def complete(
+            self, prompt: str, model: str | None = None, timeout_s: float | None = None
+        ) -> LLMResponse:  # noqa: ARG002
             nonlocal llm_called
             llm_called = True
             return LLMResponse(text="{}", tokens=0, latency_ms=0)
@@ -143,6 +149,7 @@ async def test_tc_4_2_2_empty_kb_returns_no_match() -> None:
 # ---------------------------------------------------------------------------
 # TC-4.2.3: /kb/search raises httpx.TimeoutException → graceful fallback, no raise
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_tc_4_2_3_kb_timeout_returns_graceful_fallback() -> None:
@@ -163,6 +170,7 @@ async def test_tc_4_2_3_kb_timeout_returns_graceful_fallback() -> None:
 # ---------------------------------------------------------------------------
 # TC-4.2.4: LLM returns JSON with matched_incidents=[] → post-LLM guard populates from KB
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_tc_4_2_4_empty_llm_matched_incidents_filled_from_kb() -> None:
@@ -187,9 +195,10 @@ async def test_tc_4_2_4_empty_llm_matched_incidents_filled_from_kb() -> None:
 # (requires DATABASE_URL pointing at a real database — skipped in CI)
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.skipif(
     not os.environ.get("DATABASE_URL"),
-    reason="DATABASE_URL not set; skipping live DB backfill test"
+    reason="DATABASE_URL not set; skipping live DB backfill test",
 )
 @pytest.mark.asyncio
 async def test_tc_4_2_5_backfill_task_embeds_null_rows() -> None:
@@ -237,7 +246,5 @@ async def test_tc_4_2_5_backfill_task_embeds_null_rows() -> None:
         assert call_count == 0, "second pass should not re-embed already-embedded rows"
 
     finally:
-        await conn.execute(
-            "DELETE FROM knowledge_base.kb_documents WHERE id = $1::uuid", doc_id
-        )
+        await conn.execute("DELETE FROM knowledge_base.kb_documents WHERE id = $1::uuid", doc_id)
         await conn.close()

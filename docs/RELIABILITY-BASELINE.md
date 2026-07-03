@@ -96,3 +96,50 @@ To reproduce this baseline after Day 33 changes:
 - Day 33's core fix: use `qwen2.5:3b` for the 6 specialist agents (fast, ~5–10s each)
   and keep `qwen3:14b` only for the Synthesizer (1 call, runs after all specialists complete).
   Expected savings: 5 × (40s avg) = 200s saved, bringing total well under the 600s deadline.
+
+---
+
+## Day 33 — Model ladder applied
+
+**Configuration change:** `qwen2.5:3b` for 6 specialists (30s per-agent timeout), `qwen3:14b`
+for Synthesizer only (180s timeout). Per-agent model selection via `AgentModelSpec` registry
+in `agents/app/llm/model_registry.py`. `LLMClient.complete()` now accepts `model` and
+`timeout_s` per-call overrides.
+
+### Smoke test result (fingerprint `d33-smoke-1`)
+
+*(Run after restarting agents with the new model ladder code)*
+
+- **Outcome:** *(fill in: RESOLVED / PARTIAL / Outcome C)*
+- Start-to-terminal wall clock: **N/A — run pending**
+- Terminal state reached at: —
+- Agents that reported: —
+- Agents that timed out: —
+
+### Per-agent latency after model swap
+
+| agent_name | Day 32 avg (ms) | Day 33 avg (ms) | delta |
+|---|---|---|---|
+| echo | 0 (error) | — | — |
+| log_analyzer | 0 (timeout) | — | — |
+| metrics | — (did not run) | — | — |
+| history | — (did not run) | — | — |
+| topology | — (did not run) | — | — |
+| runbook | — (did not run) | — | — |
+| synthesizer | — (never completed) | — | — |
+
+### Counter snapshots (Day 33)
+
+*(After smoke test: `curl http://localhost:8001/metrics | grep sentinel_`)*
+
+- `sentinel_agent_timeouts_total` per agent: —
+- `sentinel_deadline_breaches_total`: —
+
+### Observations
+
+*(Fill in after smoke test: what changed, actual wall-clock, p95 improvement)*
+
+### Sprint 5 improvement target
+
+Was: p95 incident wall-clock cut in half from Day 32 baseline (>600s, never terminated)
+Actual: *(fill in after smoke test)*
