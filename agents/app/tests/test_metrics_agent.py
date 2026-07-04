@@ -52,7 +52,9 @@ class _FakeLLM(LLMClient):
         self._latency_ms = latency_ms
         self.last_prompt: str = ""
 
-    async def complete(self, prompt: str) -> LLMResponse:
+    async def complete(
+        self, prompt: str, model: str | None = None, timeout_s: float | None = None
+    ) -> LLMResponse:  # noqa: ARG002
         self.last_prompt = prompt
         resp = self._responses[min(self._call_count, len(self._responses) - 1)]
         self._call_count += 1
@@ -81,6 +83,7 @@ def _prometheus_reachable() -> bool:
 # TC-2.9.3: Metrics agent returns a structured finding (happy path)
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_tc_2_9_3_happy_path(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "tool_mode", "fixture")
@@ -108,6 +111,7 @@ async def test_tc_2_9_3_happy_path(monkeypatch: pytest.MonkeyPatch) -> None:
 # TC-2.9.4: SLO violations propagate into the agent's prompt input
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_tc_2_9_4_slo_violations_in_prompt(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "tool_mode", "fixture")
@@ -126,6 +130,7 @@ async def test_tc_2_9_4_slo_violations_in_prompt(monkeypatch: pytest.MonkeyPatch
 # ---------------------------------------------------------------------------
 # TC-2.9.5: Persistent parse failure yields the metrics fallback
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_tc_2_9_5_persistent_failure_yields_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -148,6 +153,7 @@ async def test_tc_2_9_5_persistent_failure_yields_fallback(monkeypatch: pytest.M
 # TC-2.9.6: Live integration — slow_query produces a real metrics finding
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 @pytest.mark.skipif(
     not (_ollama_reachable() and _prometheus_reachable()),
@@ -157,6 +163,7 @@ async def test_tc_2_9_6_live_slow_query(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr(settings, "tool_mode", "live")
 
     from app.llm.factory import make_llm_client
+
     llm = make_llm_client(settings)
     registry = _real_registry()
     task = _make_task(service="demo-app")

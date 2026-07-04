@@ -14,12 +14,16 @@ from app.settings import Settings, settings
 
 
 class _FakeLLM:
-    async def complete(self, prompt: str) -> LLMResponse:
+    async def complete(
+        self, prompt: str, model: str | None = None, timeout_s: float | None = None
+    ) -> LLMResponse:  # noqa: ARG002
         return LLMResponse(text="Acknowledged.", tokens=12, latency_ms=5)
 
 
 class _ErrorLLM:
-    async def complete(self, prompt: str) -> LLMResponse:
+    async def complete(
+        self, prompt: str, model: str | None = None, timeout_s: float | None = None
+    ) -> LLMResponse:  # noqa: ARG002
         raise RuntimeError("LLM unavailable")
 
 

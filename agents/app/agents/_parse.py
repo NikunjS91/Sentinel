@@ -16,6 +16,7 @@ from typing import TypeVar
 from pydantic import BaseModel, ValidationError
 
 from ..llm.base import LLMClient
+from ..llm.model_registry import resolve_agent_spec
 from ..metrics import AGENT_LLM_LATENCY, AGENT_TIMEOUTS
 
 log = logging.getLogger(__name__)
@@ -61,9 +62,10 @@ async def call_with_retry(
     caller wants returned if both attempts fail (typically a confidence=0
     instance of the target model)."""
     stats = LLMStats()
+    spec = resolve_agent_spec(agent_name)
 
     try:
-        resp = await llm.complete(prompt)
+        resp = await llm.complete(prompt, model=spec.model, timeout_s=spec.timeout_s)
     except Exception:
         AGENT_TIMEOUTS.labels(agent_name=agent_name).inc()
         log.exception("%s: LLM call failed; returning fallback", agent_name)
@@ -82,7 +84,7 @@ async def call_with_retry(
         "no markdown fences."
     )
     try:
-        resp2 = await llm.complete(nudge)
+        resp2 = await llm.complete(nudge, model=spec.model, timeout_s=spec.timeout_s)
     except Exception:
         AGENT_TIMEOUTS.labels(agent_name=agent_name).inc()
         log.exception("%s: LLM retry call failed; returning fallback", agent_name)

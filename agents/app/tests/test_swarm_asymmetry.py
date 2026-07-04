@@ -32,7 +32,9 @@ class _FakeLLM:
         self._log_response = log_response
         self._metrics_response = metrics_response
 
-    async def complete(self, prompt: str) -> LLMResponse:
+    async def complete(
+        self, prompt: str, model: str | None = None, timeout_s: float | None = None
+    ) -> LLMResponse:  # noqa: ARG002
         # Route by the prompt's distinctive marker.
         if "Log Analyzer agent" in prompt:
             text = self._log_response
@@ -57,18 +59,22 @@ async def test_slow_query_produces_swarm_asymmetry(monkeypatch: pytest.MonkeyPat
     monkeypatch.setattr(settings, "tool_mode", "fixture")
 
     # 2. Set up the fake LLM with calibrated responses.
-    log_response = json.dumps({
-        "error_patterns": [],
-        "most_likely_symptom": None,
-        "supporting_evidence": ["only INFO-level order_created lines observed"],
-        "confidence": 0.15,
-    })
-    metrics_response = json.dumps({
-        "slo_status": "violations_present",
-        "anomalies": ["p95 order-create latency 0.82s exceeds 0.50s SLO"],
-        "most_likely_cause": "downstream DB query latency",
-        "confidence": 0.88,
-    })
+    log_response = json.dumps(
+        {
+            "error_patterns": [],
+            "most_likely_symptom": None,
+            "supporting_evidence": ["only INFO-level order_created lines observed"],
+            "confidence": 0.15,
+        }
+    )
+    metrics_response = json.dumps(
+        {
+            "slo_status": "violations_present",
+            "anomalies": ["p95 order-create latency 0.82s exceeds 0.50s SLO"],
+            "most_likely_cause": "downstream DB query latency",
+            "confidence": 0.88,
+        }
+    )
     fake = _FakeLLM(log_response, metrics_response)
 
     # 3. Use the real prompt registry — the prompts shape the LLM input

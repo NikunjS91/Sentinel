@@ -2,6 +2,20 @@
 
 ## Sprint 5 — Reliability + Eval Harness
 
+### Day 33 (S5-D2) — Model ladder + per-agent timeouts
+- Done: `qwen2.5:3b` assigned to all 6 specialists (30s per-agent timeout); `qwen3:14b`
+  retained for Synthesizer (180s timeout). New `agents/app/llm/model_registry.py`:
+  `AgentModelSpec` dataclass + `DEFAULT_LADDER` dict + `resolve_agent_spec()`. `LLMClient`
+  Protocol + `OllamaClient.complete()` updated to accept `model` and `timeout_s` per-call
+  overrides. `call_with_retry()` resolves spec from `agent_name` and passes model/timeout to
+  both LLM calls (initial + retry). Echo agent updated to use ladder directly (it bypasses
+  `call_with_retry`). `"format": "json"` added to Ollama API payload for reliable structured
+  output. All 10 existing test mock LLMs updated to match new Protocol signature.
+- Tests: TC-5.2.1–5.2.5 (5 new Python unit tests, all passing). Total: 63 passing.
+- Reliability delta from Day 32: smoke test pending (fingerprint `d33-smoke-1`); update
+  `docs/RELIABILITY-BASELINE.md` with real numbers after smoke test.
+- Next: Day 34 — hardening. `alert_name` column, DLQ handler, circuit breakers.
+
 ### Day 32 (S5-D1) — Rehydration + reliability floor
 - Done: cleared stale Sprint 4 state (Level 1 cleanup — 13 incidents force-transitioned to
   PARTIAL). Smoke test fired (fingerprint `d32-smoke-1`, `slow_query` mode, `orders-svc`).
