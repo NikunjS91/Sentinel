@@ -23,11 +23,17 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-opus-4-7"
     groq_api_key: str = ""
     groq_model: str = "llama3-70b-8192"
+    # NVIDIA NIM (OpenAI-compatible cloud inference)
+    nim_api_key: str = ""
+    nim_base_url: str = "https://integrate.api.nvidia.com/v1"
+    nim_specialist_model: str = "meta/llama-3.1-8b-instruct"
+    nim_synthesizer_model: str = "meta/llama-3.1-70b-instruct"
+    nim_timeout_s: float = 30.0
     incident_token_budget: int = 20_000
 
     # Tools (Day 14+)
     loki_url: str = "http://localhost:3100"
-    tool_mode: str = "live"           # "live" | "fixture" — governs both log and metric tools
+    tool_mode: str = "live"  # "live" | "fixture" — governs both log and metric tools
     log_sample_limit: int = 50
     log_query_timeout_s: float = 5.0
 
