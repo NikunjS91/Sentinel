@@ -42,9 +42,7 @@ async def metrics_agent(task: AgentTask, ctx: AgentContext) -> AgentResult:
         f'{{job="{service}",status=~"5.."}}[5m])) / '
         f'sum(rate(http_server_requests_seconds_count{{job="{service}"}}[5m]))'
     )
-    heap_query = (
-        f'jvm_memory_used_bytes{{job="{service}",area="heap"}} / (1024 * 1024)'
-    )
+    heap_query = f'jvm_memory_used_bytes{{job="{service}",area="heap"}} / (1024 * 1024)'
 
     p95 = await query_metrics(p95_query, window=_METRIC_WINDOW)
     err = await query_metrics(err_query, window=_METRIC_WINDOW)

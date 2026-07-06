@@ -37,10 +37,8 @@ async def runbook(task: AgentTask, ctx: AgentContext) -> AgentResult:
         return _success(task, finding, tokens=0, latency=0, prompt_version=None)
 
     prompt = ctx.prompts.get("runbook")
-    rendered = (
-        prompt.body
-        .replace("{current_incident}", json.dumps(_incident_view(task)))
-        .replace("{runbooks}", json.dumps(candidates))
+    rendered = prompt.body.replace("{current_incident}", json.dumps(_incident_view(task))).replace(
+        "{runbooks}", json.dumps(candidates)
     )
 
     fallback = RunbookFinding(
@@ -49,7 +47,10 @@ async def runbook(task: AgentTask, ctx: AgentContext) -> AgentResult:
         confidence=0.0,
     )
     finding, stats = await call_with_retry(
-        ctx.llm, rendered, RunbookFinding, fallback,
+        ctx.llm,
+        rendered,
+        RunbookFinding,
+        fallback,
         agent_name="runbook",
     )
 

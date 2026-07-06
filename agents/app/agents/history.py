@@ -46,11 +46,9 @@ async def history(task: AgentTask, ctx: AgentContext) -> AgentResult:
         return _success(task, finding, 0, 0, None)
 
     prompt = ctx.prompts.get("history")
-    rendered = (
-        prompt.body
-        .replace("{current_incident}", json.dumps(_current_incident_view(task)))
-        .replace("{candidates}", json.dumps(candidates))
-    )
+    rendered = prompt.body.replace(
+        "{current_incident}", json.dumps(_current_incident_view(task))
+    ).replace("{candidates}", json.dumps(candidates))
 
     fallback_finding = HistoryFinding(
         matched_incidents=[_to_matched(c) for c in candidates[:_TOP_K]],
@@ -59,7 +57,10 @@ async def history(task: AgentTask, ctx: AgentContext) -> AgentResult:
         confidence=0.0,
     )
     finding, stats = await call_with_retry(
-        ctx.llm, rendered, HistoryFinding, fallback_finding,
+        ctx.llm,
+        rendered,
+        HistoryFinding,
+        fallback_finding,
         agent_name="history",
     )
 
@@ -120,6 +121,7 @@ def _to_matched(c: dict[str, object]) -> MatchedIncident:
     meta = c.get("metadata") or {}
     if isinstance(meta, str):
         import json as _json
+
         try:
             meta = _json.loads(meta)
         except Exception:  # noqa: BLE001

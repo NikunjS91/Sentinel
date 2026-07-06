@@ -8,9 +8,7 @@ from app.settings import settings
 
 async def _postgres_reachable() -> bool:
     try:
-        conn: asyncpg.Connection = await asyncpg.connect(
-            settings.database_url, timeout=2
-        )
+        conn: asyncpg.Connection = await asyncpg.connect(settings.database_url, timeout=2)
         await conn.close()
         return True
     except Exception:
@@ -26,7 +24,12 @@ def test_tc_2_7_1_prompts_load_and_version() -> None:
         assert isinstance(prompt, Prompt)
         assert len(prompt.version) == 12
         assert prompt.name in (
-            "log_analyzer", "metrics_agent", "synthesizer", "history", "topology", "runbook"
+            "log_analyzer",
+            "metrics_agent",
+            "synthesizer",
+            "history",
+            "topology",
+            "runbook",
         )
 
 

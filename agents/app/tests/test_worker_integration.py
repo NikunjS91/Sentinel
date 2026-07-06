@@ -21,9 +21,7 @@ def kafka_bootstrap() -> Generator[str, None, None]:
         yield k.get_bootstrap_server()
 
 
-async def _wait_for_message(
-    bootstrap: str, topic: str, timeout_s: float = 10.0
-) -> bytes:
+async def _wait_for_message(bootstrap: str, topic: str, timeout_s: float = 10.0) -> bytes:
     """Poll a topic until one message arrives or timeout."""
     consumer = AIOKafkaConsumer(
         topic,

@@ -77,9 +77,7 @@ class KafkaWorker:
             return
 
         if self.prompt_registry is None:
-            raise RuntimeError(
-                "worker has no prompt_registry — lifespan wiring is broken"
-            )
+            raise RuntimeError("worker has no prompt_registry — lifespan wiring is broken")
 
         ctx = AgentContext(llm=self._llm, prompts=self.prompt_registry, embedder=self.embedder)
         agent_fn = AGENTS.get(task.agent_name)

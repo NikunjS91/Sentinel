@@ -63,8 +63,7 @@ class EmbeddingBackfillTask:
                 resp = await embedder.embed(text)
                 vec_str = "[" + ",".join(f"{v:.6f}" for v in resp.vector) + "]"
                 await conn.execute(
-                    "UPDATE knowledge_base.kb_documents "
-                    "SET embedding = $1::vector WHERE id = $2",
+                    "UPDATE knowledge_base.kb_documents SET embedding = $1::vector WHERE id = $2",
                     vec_str,
                     row["id"],
                 )

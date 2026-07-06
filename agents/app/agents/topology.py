@@ -36,11 +36,9 @@ async def topology(task: AgentTask, ctx: AgentContext) -> AgentResult:
         return _success(task, finding, tokens=0, latency=0, prompt_version=None)
 
     prompt = ctx.prompts.get("topology")
-    rendered = (
-        prompt.body
-        .replace("{current_incident}", json.dumps(_current_incident_view(task)))
-        .replace("{neighbors}", json.dumps([n.model_dump() for n in neighbors]))
-    )
+    rendered = prompt.body.replace(
+        "{current_incident}", json.dumps(_current_incident_view(task))
+    ).replace("{neighbors}", json.dumps([n.model_dump() for n in neighbors]))
 
     fallback = TopologyFinding(
         neighbors=neighbors,
@@ -49,7 +47,10 @@ async def topology(task: AgentTask, ctx: AgentContext) -> AgentResult:
         confidence=0.0,
     )
     finding, stats = await call_with_retry(
-        ctx.llm, rendered, TopologyFinding, fallback,
+        ctx.llm,
+        rendered,
+        TopologyFinding,
+        fallback,
         agent_name="topology",
     )
 
@@ -81,19 +82,23 @@ def _flatten_neighbors(topo: dict[str, object]) -> list[TopologyNeighbor]:
     outgoing: list[dict[str, object]] = topo.get("outgoing") or []  # type: ignore[assignment]
     incoming: list[dict[str, object]] = topo.get("incoming") or []  # type: ignore[assignment]
     for link in outgoing:
-        out.append(TopologyNeighbor(
-            service=str(link.get("to_service") or link.get("toService", "")),
-            direction="outgoing",
-            relationship=str(link.get("relationship", "")),
-            metadata=link.get("metadata") or {},
-        ))
+        out.append(
+            TopologyNeighbor(
+                service=str(link.get("to_service") or link.get("toService", "")),
+                direction="outgoing",
+                relationship=str(link.get("relationship", "")),
+                metadata=link.get("metadata") or {},
+            )
+        )
     for link in incoming:
-        out.append(TopologyNeighbor(
-            service=str(link.get("from_service") or link.get("fromService", "")),
-            direction="incoming",
-            relationship=str(link.get("relationship", "")),
-            metadata=link.get("metadata") or {},
-        ))
+        out.append(
+            TopologyNeighbor(
+                service=str(link.get("from_service") or link.get("fromService", "")),
+                direction="incoming",
+                relationship=str(link.get("relationship", "")),
+                metadata=link.get("metadata") or {},
+            )
+        )
     return out
 
 
