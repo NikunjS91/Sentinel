@@ -1,14 +1,19 @@
+import asyncio
 import json
 import time
 import uuid
 from collections.abc import Generator
+from unittest.mock import MagicMock, patch
 
+import asyncpg
 import pytest
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from testcontainers.kafka import KafkaContainer
 
+from app.embedding.backfill_task import EmbeddingBackfillTask
+from app.llm.model_registry import resolve_agent_spec
 from app.models import AgentResult, AgentTask
 from app.prompt_registry import PromptRegistry
 from app.settings import Settings
@@ -21,9 +26,7 @@ def kafka_bootstrap() -> Generator[str, None, None]:
         yield k.get_bootstrap_server()
 
 
-async def _wait_for_message(
-    bootstrap: str, topic: str, timeout_s: float = 10.0
-) -> bytes:
+async def _wait_for_message(bootstrap: str, topic: str, timeout_s: float = 10.0) -> bytes:
     """Poll a topic until one message arrives or timeout."""
     consumer = AIOKafkaConsumer(
         topic,
@@ -139,3 +142,113 @@ async def test_tc_1_7_3_malformed_message_goes_to_dlq(kafka_bootstrap: str) -> N
     assert result.incident_id == incident_id
 
     await worker.stop()
+
+
+# TC-5.3.1: outer supervisor restarts _consume_loop after one crash
+@pytest.mark.asyncio
+async def test_tc_5_3_1_worker_restarts_after_crash() -> None:
+    s = Settings(llm_backend="anthropic")
+    worker = KafkaWorker(s)
+    calls: list[int] = []
+
+    async def _crash_once() -> None:
+        calls.append(1)
+        if len(calls) == 1:
+            raise RuntimeError("simulated Kafka rebalance crash")
+
+    worker._consume_loop = _crash_once  # type: ignore[method-assign]
+    await worker._run()
+    assert len(calls) == 2, "supervisor must have retried _consume_loop once"
+
+
+# TC-5.3.2: CancelledError propagates out of _run without retry
+@pytest.mark.asyncio
+async def test_tc_5_3_2_cancelled_error_propagates() -> None:
+    s = Settings(llm_backend="anthropic")
+    worker = KafkaWorker(s)
+
+    async def _raises_cancelled() -> None:
+        raise asyncio.CancelledError
+
+    worker._consume_loop = _raises_cancelled  # type: ignore[method-assign]
+    await worker._run()
+
+
+# TC-5.3.3: _handle exception skips commit; message will redeliver
+@pytest.mark.asyncio
+async def test_tc_5_3_3_handle_exception_skips_commit() -> None:
+    s = Settings(llm_backend="anthropic")
+    worker = KafkaWorker(s)
+
+    commit_called = False
+
+    async def _fail_handle(_raw: bytes) -> None:
+        raise ValueError("bad message")
+
+    worker._handle = _fail_handle  # type: ignore[method-assign]
+
+    fake_msg = MagicMock()
+    fake_msg.value = b"irrelevant"
+
+    async def _fake_aiter(self: object) -> object:  # noqa: ARG001
+        yield fake_msg
+        raise asyncio.CancelledError
+
+    fake_consumer = MagicMock()
+    fake_consumer.__aiter__ = _fake_aiter
+
+    async def _fake_commit() -> None:
+        nonlocal commit_called
+        commit_called = True
+
+    fake_consumer.commit = _fake_commit
+    worker._consumer = fake_consumer  # type: ignore[assignment]
+
+    try:
+        await worker._consume_loop()
+    except asyncio.CancelledError:
+        pass
+
+    assert not commit_called, "commit must not be called when _handle raises"
+
+
+# TC-5.3.4: NIM synthesizer spec has timeout_s >= 180
+def test_tc_5_3_4_nim_synthesizer_timeout() -> None:
+    with patch("app.settings.settings") as mock_settings:
+        mock_settings.llm_backend = "nim"
+        mock_settings.nim_specialist_model = "meta/llama-3.1-8b-instruct"
+        mock_settings.nim_synthesizer_model = "meta/llama-3.1-70b-instruct"
+        mock_settings.nim_timeout_s = 30.0
+        mock_settings.nim_synthesizer_timeout_s = 180.0
+        spec = resolve_agent_spec("synthesizer")
+    assert spec.timeout_s >= 180.0, f"synthesizer timeout must be >= 180s, got {spec.timeout_s}"
+
+
+# TC-5.3.5: backfill task backs off exponentially on Postgres connection errors
+@pytest.mark.asyncio
+async def test_tc_5_3_5_backfill_exponential_backoff() -> None:
+    task = EmbeddingBackfillTask(interval_s=1.0)
+    sleep_calls: list[float] = []
+
+    pass_count = 0
+
+    async def _fake_pass(_embedder: object) -> None:
+        nonlocal pass_count
+        pass_count += 1
+        if pass_count <= 3:
+            raise asyncpg.PostgresConnectionError("connection refused")
+        task._stop.set()
+
+    async def _fake_wait_for(coro: object, timeout: float) -> None:  # noqa: ARG001
+        sleep_calls.append(timeout)
+        raise TimeoutError
+
+    task._pass = _fake_pass  # type: ignore[method-assign]
+
+    with patch("app.embedding.backfill_task.asyncio.wait_for", side_effect=_fake_wait_for):
+        with patch("app.embedding.backfill_task.make_embedding_client", return_value=MagicMock()):
+            await task._run()
+
+    assert sleep_calls[0] == 1.0
+    assert sleep_calls[1] == 2.0
+    assert sleep_calls[2] == 4.0

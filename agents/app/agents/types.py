@@ -44,7 +44,7 @@ class MatchedIncident(BaseModel):
 
     id: str
     title: str
-    distance: float          # cosine distance; lower = more similar
+    distance: float  # cosine distance; lower = more similar
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -63,7 +63,7 @@ class TopologyNeighbor(BaseModel):
     """One neighboring service in the topology graph."""
 
     service: str
-    direction: str          # "outgoing" (we → them) | "incoming" (they → us)
+    direction: str  # "outgoing" (we → them) | "incoming" (they → us)
     relationship: str
     metadata: dict[str, Any] = Field(default_factory=dict)
 

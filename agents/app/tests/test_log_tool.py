@@ -31,9 +31,7 @@ async def test_tc_2_5_1_truncation(monkeypatch: pytest.MonkeyPatch) -> None:
 async def test_tc_2_5_2_fixture_mode_offline(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "tool_mode", "fixture")
 
-    result = await query_logs(
-        '{service="demo-app", level="ERROR"} |= "downstream_timeout"'
-    )
+    result = await query_logs('{service="demo-app", level="ERROR"} |= "downstream_timeout"')
 
     assert "ERROR" in result.top_levels
     assert any("downstream_timeout" in msg for msg, _count in result.top_messages)

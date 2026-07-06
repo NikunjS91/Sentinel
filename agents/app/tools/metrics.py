@@ -82,14 +82,20 @@ async def query_metrics(
     except httpx.TimeoutException as exc:
         log.warning("query_metrics timeout: %s", exc)
         return MetricResult(
-            query=promql, time_range=time_range, step_s=step_s,
-            status="timeout", error=str(exc),
+            query=promql,
+            time_range=time_range,
+            step_s=step_s,
+            status="timeout",
+            error=str(exc),
         )
     except Exception as exc:  # noqa: BLE001
         log.exception("query_metrics failed")
         return MetricResult(
-            query=promql, time_range=time_range, step_s=step_s,
-            status="error", error=str(exc),
+            query=promql,
+            time_range=time_range,
+            step_s=step_s,
+            status="error",
+            error=str(exc),
         )
 
     return _summarize(promql, raw, time_range, step_s, max_series)
@@ -131,7 +137,10 @@ def _summarize(
 ) -> MetricResult:
     if not raw:
         return MetricResult(
-            query=promql, time_range=time_range, step_s=step_s, status="empty",
+            query=promql,
+            time_range=time_range,
+            step_s=step_s,
+            status="empty",
         )
 
     total = len(raw)
@@ -148,15 +157,17 @@ def _summarize(
             continue
         nums_sorted = sorted(nums)
         p95_idx = max(0, int(len(nums_sorted) * 0.95) - 1)
-        summaries.append(SeriesSummary(
-            labels=labels,
-            point_count=len(nums),
-            min=min(nums),
-            max=max(nums),
-            avg=sum(nums) / len(nums),
-            last=nums[-1],
-            p95=nums_sorted[p95_idx],
-        ))
+        summaries.append(
+            SeriesSummary(
+                labels=labels,
+                point_count=len(nums),
+                min=min(nums),
+                max=max(nums),
+                avg=sum(nums) / len(nums),
+                last=nums[-1],
+                p95=nums_sorted[p95_idx],
+            )
+        )
 
     return MetricResult(
         query=promql,
@@ -186,55 +197,61 @@ async def slo_violations(
 
     p95_query = (
         f"histogram_quantile(0.95, "
-        f"sum by (le) (rate(orders_create_latency_seconds_bucket{{job=\"{service}\"}}[5m])))"
+        f'sum by (le) (rate(orders_create_latency_seconds_bucket{{job="{service}"}}[5m])))'
     )
     p95 = await query_metrics(p95_query, window=window)
     if p95.status == "ok" and p95.series:
         last_p95 = p95.series[0].last
         if last_p95 > _SLO_THRESHOLDS["latency_p95_s"]:
-            violations.append(SLOViolation(
-                slo="latency_p95",
-                observed=last_p95,
-                threshold=_SLO_THRESHOLDS["latency_p95_s"],
-                description=(
-                    f"p95 order-create latency {last_p95:.2f}s exceeds "
-                    f"{_SLO_THRESHOLDS['latency_p95_s']:.2f}s SLO"
-                ),
-            ))
+            violations.append(
+                SLOViolation(
+                    slo="latency_p95",
+                    observed=last_p95,
+                    threshold=_SLO_THRESHOLDS["latency_p95_s"],
+                    description=(
+                        f"p95 order-create latency {last_p95:.2f}s exceeds "
+                        f"{_SLO_THRESHOLDS['latency_p95_s']:.2f}s SLO"
+                    ),
+                )
+            )
 
     err_query = (
         f"100 * sum(rate(http_server_requests_seconds_count"
-        f"{{job=\"{service}\",status=~\"5..\"}}[5m])) / "
-        f"sum(rate(http_server_requests_seconds_count{{job=\"{service}\"}}[5m]))"
+        f'{{job="{service}",status=~"5.."}}[5m])) / '
+        f'sum(rate(http_server_requests_seconds_count{{job="{service}"}}[5m]))'
     )
     err = await query_metrics(err_query, window=window)
     if err.status == "ok" and err.series:
         err_rate = err.series[0].last
         if not math.isnan(err_rate) and err_rate > _SLO_THRESHOLDS["error_rate_pct"]:
-            violations.append(SLOViolation(
-                slo="error_rate",
-                observed=err_rate,
-                threshold=_SLO_THRESHOLDS["error_rate_pct"],
-                description=(
-                    f"5xx error rate {err_rate:.1f}% exceeds "
-                    f"{_SLO_THRESHOLDS['error_rate_pct']:.1f}% SLO"
-                ),
-            ))
+            violations.append(
+                SLOViolation(
+                    slo="error_rate",
+                    observed=err_rate,
+                    threshold=_SLO_THRESHOLDS["error_rate_pct"],
+                    description=(
+                        f"5xx error rate {err_rate:.1f}% exceeds "
+                        f"{_SLO_THRESHOLDS['error_rate_pct']:.1f}% SLO"
+                    ),
+                )
+            )
 
-    heap_query = f"jvm_memory_used_bytes{{job=\"{service}\",area=\"heap\"}} / (1024 * 1024)"
+    heap_query = f'jvm_memory_used_bytes{{job="{service}",area="heap"}} / (1024 * 1024)'
     heap = await query_metrics(heap_query, window=window)
     if heap.status == "ok" and heap.series:
         last_heap = max((s.last for s in heap.series), default=0.0)
         if last_heap > _SLO_THRESHOLDS["heap_used_mb"]:
-            violations.append(SLOViolation(
-                slo="heap_usage",
-                observed=last_heap,
-                threshold=_SLO_THRESHOLDS["heap_used_mb"],
-                description=(
-                    f"heap used {last_heap:.0f} MB exceeds "
-                    f"{_SLO_THRESHOLDS['heap_used_mb']:.0f} MB SLO"
-                ),
-            ))
+            violations.append(
+                SLOViolation(
+                    slo="heap_usage",
+                    observed=last_heap,
+                    threshold=_SLO_THRESHOLDS["heap_used_mb"],
+                    description=(
+                        f"heap used {last_heap:.0f} MB exceeds "
+                        f"{_SLO_THRESHOLDS['heap_used_mb']:.0f} MB SLO"
+                    ),
+                )
+            )
 
     return violations
 

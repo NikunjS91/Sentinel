@@ -15,6 +15,7 @@ class SentenceTransformerEmbedding(EmbeddingClient):
     def _load(self) -> None:
         if self._model is None:
             from sentence_transformers import SentenceTransformer
+
             self._model = SentenceTransformer(_MODEL_NAME)
 
     async def embed(self, text: str) -> EmbeddingResponse:

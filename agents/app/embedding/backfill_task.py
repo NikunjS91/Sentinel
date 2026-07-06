@@ -38,13 +38,20 @@ class EmbeddingBackfillTask:
     async def _run(self) -> None:
         log.info("embedding backfill task started; interval=%.0fs", self.interval_s)
         embedder: EmbeddingClient = make_embedding_client()
+        backoff = self.interval_s
         while not self._stop.is_set():
+            sleep_for = backoff  # sleep with current backoff; double happens after sleep
             try:
                 await self._pass(embedder)
+                backoff = self.interval_s  # reset on success
+            except asyncpg.PostgresConnectionError as exc:
+                log.warning("backfill: Postgres unavailable (%s); retrying in %.0fs", exc, sleep_for)
+                backoff = min(backoff * 2, 300.0)  # double for next failure
             except Exception:  # noqa: BLE001
                 log.exception("backfill pass failed; continuing")
+                backoff = self.interval_s
             try:
-                await asyncio.wait_for(self._stop.wait(), timeout=self.interval_s)
+                await asyncio.wait_for(self._stop.wait(), timeout=sleep_for)
             except TimeoutError:
                 pass
 
@@ -63,8 +70,7 @@ class EmbeddingBackfillTask:
                 resp = await embedder.embed(text)
                 vec_str = "[" + ",".join(f"{v:.6f}" for v in resp.vector) + "]"
                 await conn.execute(
-                    "UPDATE knowledge_base.kb_documents "
-                    "SET embedding = $1::vector WHERE id = $2",
+                    "UPDATE knowledge_base.kb_documents SET embedding = $1::vector WHERE id = $2",
                     vec_str,
                     row["id"],
                 )

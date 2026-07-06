@@ -37,6 +37,10 @@ class KafkaWorker:
             group_id=self.s.kafka_group_id,
             enable_auto_commit=False,
             auto_offset_reset="earliest",
+            max_poll_interval_ms=600_000,   # 10 min — headroom for slow NIM + synthesizer
+            max_poll_records=1,             # one task at a time; no batch surprises
+            session_timeout_ms=45_000,
+            heartbeat_interval_ms=15_000,
         )
         self._producer = AIOKafkaProducer(bootstrap_servers=self.s.kafka_bootstrap)
         await self._consumer.start()
@@ -58,16 +62,28 @@ class KafkaWorker:
         log.info("KafkaWorker stopped")
 
     async def _run(self) -> None:
+        """Outer supervisor: retries _consume_loop on Kafka-level crashes with backoff."""
+        delay = 1.0
+        while True:
+            try:
+                await self._consume_loop()
+                return
+            except asyncio.CancelledError:
+                return
+            except Exception:
+                log.exception("worker loop crashed — restarting in %.0fs", delay)
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, 30.0)
+
+    async def _consume_loop(self) -> None:
         assert self._consumer is not None
-        try:
-            async for msg in self._consumer:
+        async for msg in self._consumer:
+            try:
                 await self._handle(msg.value)
-                await self._consumer.commit()
-        except asyncio.CancelledError:
-            return
-        except Exception:
-            log.exception("worker loop crashed")
-            raise
+            except Exception:
+                log.exception("_handle failed — skipping commit, message will redeliver")
+                continue
+            await self._consumer.commit()
 
     async def _handle(self, raw: bytes) -> None:
         try:
@@ -77,9 +93,7 @@ class KafkaWorker:
             return
 
         if self.prompt_registry is None:
-            raise RuntimeError(
-                "worker has no prompt_registry — lifespan wiring is broken"
-            )
+            raise RuntimeError("worker has no prompt_registry — lifespan wiring is broken")
 
         ctx = AgentContext(llm=self._llm, prompts=self.prompt_registry, embedder=self.embedder)
         agent_fn = AGENTS.get(task.agent_name)

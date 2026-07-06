@@ -54,10 +54,8 @@ async def synthesizer(task: AgentTask, ctx: AgentContext) -> AgentResult:
     }
 
     prompt = ctx.prompts.get("synthesizer")
-    rendered = (
-        prompt.body
-        .replace("{incident_context}", json.dumps(incident_context))
-        .replace("{specialist_findings}", json.dumps(specialist_findings))
+    rendered = prompt.body.replace("{incident_context}", json.dumps(incident_context)).replace(
+        "{specialist_findings}", json.dumps(specialist_findings)
     )
 
     agent_names = [
@@ -68,7 +66,10 @@ async def synthesizer(task: AgentTask, ctx: AgentContext) -> AgentResult:
     fallback = _build_fallback(payload if isinstance(payload, dict) else {}, agent_names)
 
     finding, stats = await call_with_retry(
-        ctx.llm, rendered, SynthesizerFinding, fallback,
+        ctx.llm,
+        rendered,
+        SynthesizerFinding,
+        fallback,
         agent_name="synthesizer",
     )
 

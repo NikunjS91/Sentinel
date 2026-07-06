@@ -65,6 +65,7 @@ async def test_tc_2_6_3_healthy_no_violations(monkeypatch: pytest.MonkeyPatch) -
 
     # Directly test _summarize with a series that's under all thresholds
     from app.tools.metrics import _series, _summarize
+
     safe_raw = [_series({"job": "demo-app"}, [0.01, 0.02, 0.01])]
     summary = _summarize("safe_query", safe_raw, ("t0", "t1"), 15.0, 10)
     assert summary.series[0].last < 0.5

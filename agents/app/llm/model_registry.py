@@ -1,14 +1,23 @@
 """Per-agent model selection.
 
-Maps agent name → (model, timeout_s). Editing this file — not agent code —
-swaps models.
+Maps agent name → (model, timeout_s). The active ladder is chosen from
+settings.llm_backend so switching backends (ollama → nim) automatically
+picks the right model names without touching agent code.
 
-Sprint 5 defaults:
-  - 6 specialists use qwen2.5:3b with 30s timeout (fast, ~5-10s actual)
-  - Synthesizer uses qwen3:14b with 180s timeout (one call, runs after all specialists)
+Ollama defaults:
+  - 6 specialists: qwen2.5:3b, 30s timeout
+  - Synthesizer:   qwen3:14b,  180s timeout
+
+NIM defaults (cloud inference, fast):
+  - 6 specialists: meta/llama-3.1-8b-instruct, 30s timeout
+  - Synthesizer:   meta/llama-3.1-70b-instruct, 180s timeout
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
+
+_SPECIALIST_NAMES = ("echo", "log_analyzer", "metrics", "history", "topology", "runbook")
 
 
 @dataclass(frozen=True)
@@ -28,9 +37,24 @@ DEFAULT_LADDER: dict[str, AgentModelSpec] = {
 }
 
 
+def _nim_ladder() -> dict[str, AgentModelSpec]:
+    from ..settings import settings
+
+    specialist = AgentModelSpec(
+        model=settings.nim_specialist_model, timeout_s=settings.nim_timeout_s
+    )
+    synthesizer = AgentModelSpec(
+        model=settings.nim_synthesizer_model, timeout_s=settings.nim_synthesizer_timeout_s
+    )
+    return {**{name: specialist for name in _SPECIALIST_NAMES}, "synthesizer": synthesizer}
+
+
 def resolve_agent_spec(agent_name: str) -> AgentModelSpec:
     """Return the (model, timeout) for an agent.
 
-    Falls back to the Synthesizer spec for unknown names — conservative so
-    a mis-configured agent doesn't silently use an undersized model."""
-    return DEFAULT_LADDER.get(agent_name, DEFAULT_LADDER["synthesizer"])
+    Automatically selects the right model names for the configured backend.
+    Falls back to the Synthesizer spec for unknown agent names."""
+    from ..settings import settings
+
+    ladder = _nim_ladder() if settings.llm_backend.lower() == "nim" else DEFAULT_LADDER
+    return ladder.get(agent_name, ladder["synthesizer"])

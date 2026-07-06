@@ -2,6 +2,7 @@ from ..settings import Settings
 from .anthropic import AnthropicClient
 from .base import LLMClient
 from .groq import GroqClient
+from .nim import NimClient
 from .ollama import OllamaClient
 
 
@@ -14,4 +15,11 @@ def make_llm_client(settings: Settings) -> LLMClient:
         return AnthropicClient(settings.anthropic_api_key, settings.anthropic_model)
     if backend == "groq":
         return GroqClient(settings.groq_api_key, settings.groq_model)
+    if backend == "nim":
+        return NimClient(
+            api_key=settings.nim_api_key,
+            base_url=settings.nim_base_url,
+            default_model=settings.nim_specialist_model,
+            default_timeout_s=settings.nim_timeout_s,
+        )
     raise ValueError(f"unknown LLM_BACKEND: {settings.llm_backend!r}")
