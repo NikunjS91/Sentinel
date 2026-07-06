@@ -10,7 +10,7 @@ Ollama defaults:
 
 NIM defaults (cloud inference, fast):
   - 6 specialists: meta/llama-3.1-8b-instruct, 30s timeout
-  - Synthesizer:   meta/llama-3.1-70b-instruct, 30s timeout
+  - Synthesizer:   meta/llama-3.1-70b-instruct, 180s timeout
 """
 
 from __future__ import annotations
@@ -44,7 +44,7 @@ def _nim_ladder() -> dict[str, AgentModelSpec]:
         model=settings.nim_specialist_model, timeout_s=settings.nim_timeout_s
     )
     synthesizer = AgentModelSpec(
-        model=settings.nim_synthesizer_model, timeout_s=settings.nim_timeout_s
+        model=settings.nim_synthesizer_model, timeout_s=settings.nim_synthesizer_timeout_s
     )
     return {**{name: specialist for name in _SPECIALIST_NAMES}, "synthesizer": synthesizer}
 

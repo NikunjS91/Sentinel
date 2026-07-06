@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     nim_specialist_model: str = "meta/llama-3.1-8b-instruct"
     nim_synthesizer_model: str = "meta/llama-3.1-70b-instruct"
     nim_timeout_s: float = 30.0
+    nim_synthesizer_timeout_s: float = 180.0
     incident_token_budget: int = 20_000
 
     # Tools (Day 14+)
