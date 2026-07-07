@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 from datetime import timedelta
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -23,10 +24,10 @@ _METRIC_WINDOW = timedelta(minutes=10)
 
 
 class _MetricsSummary(BaseModel):
-    slo_violations: list[dict]  # type: ignore[type-arg]
-    p95_latency_series: list[dict]  # type: ignore[type-arg]
-    error_rate_series: list[dict]  # type: ignore[type-arg]
-    heap_usage_series: list[dict]  # type: ignore[type-arg]
+    slo_violations: list[dict[str, Any]]
+    p95_latency_series: list[dict[str, Any]]
+    error_rate_series: list[dict[str, Any]]
+    heap_usage_series: list[dict[str, Any]]
 
 
 async def metrics_agent(task: AgentTask, ctx: AgentContext) -> AgentResult:

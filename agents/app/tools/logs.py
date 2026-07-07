@@ -75,6 +75,7 @@ async def _call_loki(
     }
     async with httpx.AsyncClient(timeout=settings.log_query_timeout_s) as client:
         resp = await client.get(f"{settings.loki_url}/loki/api/v1/query_range", params=params)
+        resp.raise_for_status()
         data = resp.json()
 
     lines: list[str] = []

@@ -2,6 +2,8 @@ package com.sentinel.incident;
 
 import com.sentinel.config.KafkaTopicConfig;
 import com.sentinel.dispatch.Dispatcher;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,6 +13,8 @@ import java.util.UUID;
 
 @Component
 public class ClassifierListener {
+
+    private static final Logger log = LoggerFactory.getLogger(ClassifierListener.class);
 
     private final IncidentRepository incidents;
     private final IncidentClassifier classifier;
@@ -36,7 +40,13 @@ public class ClassifierListener {
     @Transactional
     @KafkaListener(topics = KafkaTopicConfig.INCIDENTS_RAW, groupId = "orchestrator")
     public void onRawIncident(String incidentIdStr) {
-        UUID incidentId = UUID.fromString(incidentIdStr.trim());
+        UUID incidentId;
+        try {
+            incidentId = UUID.fromString(incidentIdStr.trim());
+        } catch (IllegalArgumentException e) {
+            log.warn("malformed incident ID on incidents.raw, skipping: '{}'", incidentIdStr);
+            return;
+        }
 
         Incident inc = incidents.findById(incidentId).orElse(null);
         if (inc == null) {

@@ -24,7 +24,7 @@ public class IncidentEventPublisher {
 
     /** Register a new client. Returns the emitter to register with Spring MVC. */
     public SseEmitter subscribe() {
-        SseEmitter emitter = new SseEmitter(0L);
+        SseEmitter emitter = new SseEmitter(30 * 60 * 1000L);
         emitter.onCompletion(() -> emitters.remove(emitter));
         emitter.onTimeout(() -> emitters.remove(emitter));
         emitter.onError(t -> emitters.remove(emitter));

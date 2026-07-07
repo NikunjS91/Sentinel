@@ -9,13 +9,13 @@ const API = import.meta.env.VITE_API ?? 'http://localhost:8080';
 
 const TERMINAL_STATES: IncidentState[] = ['RESOLVED', 'PARTIAL'];
 const STATE_COLORS: Record<IncidentState, string> = {
-  RECEIVED: '#888',
-  CLASSIFIED: '#888',
-  DISPATCHED: '#5b8def',
-  AGGREGATING: '#f0a500',
-  AGGREGATING_PARTIAL: '#f07000',
-  SYNTHESIZED: '#f0a500',
-  SYNTHESIZED_PARTIAL: '#f07000',
+  RECEIVED: '#555',
+  CLASSIFIED: '#555',
+  DISPATCHED: '#4a9eff',
+  AGGREGATING: '#e08a00',
+  AGGREGATING_PARTIAL: '#c06800',
+  SYNTHESIZED: '#e08a00',
+  SYNTHESIZED_PARTIAL: '#c06800',
   RESOLVED: '#2ea043',
   PARTIAL: '#c25700',
   FAILED: '#cf222e',
@@ -60,14 +60,17 @@ export default function App() {
       <header>
         <h1>Sentinel</h1>
         <span className={`conn-indicator ${connected ? 'on' : 'off'}`}>
-          {connected ? 'live' : 'reconnecting...'}
+          {connected ? 'live' : 'reconnecting…'}
         </span>
       </header>
       <main>
         <FilterBar filter={filter} setFilter={setFilter} services={services} />
         <section className="incident-list">
           {!loading && incidents.length === 0 && (
-            <p className="empty">No incidents match the current filter.</p>
+            <div className="empty">
+              <p>No incidents match the current filter.</p>
+              <p className="empty-hint">Try "All states" or clear the search to see all incidents.</p>
+            </div>
           )}
           {incidents.map(inc => (
             <article
@@ -85,7 +88,7 @@ export default function App() {
                 </span>
                 <span className="service">{inc.service}</span>
                 <span className="severity">{inc.severity}</span>
-                <span className="time">{new Date(inc.created_at).toLocaleTimeString()}</span>
+                <span className="time mono">{new Date(inc.created_at).toLocaleTimeString()}</span>
                 {inc.human_decision && (
                   <span className="decision-chip">{inc.human_decision}</span>
                 )}
@@ -102,7 +105,7 @@ export default function App() {
         {nextBefore && (
           <div className="load-more">
             <button onClick={loadOlder} disabled={loading}>
-              {loading ? 'Loading...' : 'Load older'}
+              {loading ? 'Loading…' : 'Load older'}
             </button>
           </div>
         )}
@@ -153,7 +156,7 @@ function FilterBar({ filter, setFilter, services }: {
 
       <input
         type="search"
-        placeholder="Search summary, cause, action..."
+        placeholder="Search summary, cause, action…"
         value={filter.q}
         onChange={e => setFilter({ ...filter, q: e.target.value })}
       />
@@ -168,6 +171,8 @@ function FilterBar({ filter, setFilter, services }: {
 function IncidentDetail({ inc }: { inc: IncidentWithReport }) {
   const report = inc.report!;
   const [editing, setEditing] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
   const [editSummary, setEditSummary] = useState(report.summary ?? '');
   const [editRootCause, setEditRootCause] = useState(report.root_cause ?? '');
   const [editAction, setEditAction] = useState(report.recommended_action ?? '');
@@ -180,17 +185,21 @@ function IncidentDetail({ inc }: { inc: IncidentWithReport }) {
     if (!res.ok) setError(`Accept failed: ${res.status}`);
   };
 
-  const handleReject = async (e: React.MouseEvent) => {
+  const handleRejectSubmit = async (e: React.MouseEvent | React.FormEvent) => {
     e.stopPropagation();
+    (e as React.FormEvent).preventDefault?.();
     setError(null);
-    const reason = window.prompt('Reason for rejection?');
-    if (reason === null) return;
     const res = await fetch(`${API}/incidents/${inc.incident_id}/reject`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reason }),
+      body: JSON.stringify({ reason: rejectReason }),
     });
-    if (!res.ok) setError(`Reject failed: ${res.status}`);
+    if (res.ok) {
+      setRejecting(false);
+      setRejectReason('');
+    } else {
+      setError(`Reject failed: ${res.status}`);
+    }
   };
 
   const handleEditSubmit = async (e: React.FormEvent) => {
@@ -213,6 +222,8 @@ function IncidentDetail({ inc }: { inc: IncidentWithReport }) {
     }
   };
 
+  const isRejected = inc.human_decision === 'REJECTED';
+
   return (
     <div className="detail" onClick={e => e.stopPropagation()}>
       <p><strong>Root cause:</strong> {report.root_cause ?? '(not identified)'}</p>
@@ -225,26 +236,44 @@ function IncidentDetail({ inc }: { inc: IncidentWithReport }) {
         </>
       )}
       {report.contributing_agents.length > 0 && (
-        <p><strong>Contributing agents:</strong> {report.contributing_agents.join(', ')}</p>
+        <p><strong>Contributing agents:</strong>{' '}
+          <span className="mono">{report.contributing_agents.join(', ')}</span>
+        </p>
       )}
 
       {inc.human_decision ? (
-        <div className="decision-banner">
+        <div className={`decision-banner ${isRejected ? 'rejected' : ''}`}>
           {inc.human_decision === 'ACCEPTED' && '✓ Accepted'}
-          {inc.human_decision === 'REJECTED' && `✗ Rejected${inc.human_decision_reason ? `: ${inc.human_decision_reason}` : ''}`}
+          {isRejected && `✗ Rejected${inc.human_decision_reason ? `: ${inc.human_decision_reason}` : ''}`}
           {inc.human_decision === 'EDITED' && '✎ Edited'}
         </div>
       ) : TERMINAL_STATES.includes(inc.state) && !editing && (
-        <div className="actions">
-          <button onClick={handleAccept}>Accept</button>
-          <button onClick={handleReject}>Reject</button>
-          <button onClick={e => { e.stopPropagation(); setEditing(true); }}>Edit</button>
-        </div>
+        <>
+          <div className="actions">
+            <button className="btn-accept" onClick={handleAccept}>Accept</button>
+            <button className="btn-reject" onClick={e => { e.stopPropagation(); setRejecting(r => !r); }}>
+              Reject
+            </button>
+            <button className="btn-neutral" onClick={e => { e.stopPropagation(); setEditing(true); }}>Edit</button>
+          </div>
+          {rejecting && (
+            <form className="reject-form" onSubmit={handleRejectSubmit} onClick={e => e.stopPropagation()}>
+              <input
+                autoFocus
+                type="text"
+                placeholder="Reason for rejection…"
+                value={rejectReason}
+                onChange={e => setRejectReason(e.target.value)}
+              />
+              <button type="submit" className="btn-reject" style={{ whiteSpace: 'nowrap' }}>Confirm</button>
+              <button type="button" className="btn-neutral" onClick={e => { e.stopPropagation(); setRejecting(false); setRejectReason(''); }}>Cancel</button>
+            </form>
+          )}
+        </>
       )}
 
       {editing && (
-        <form className="edit-form" onSubmit={handleEditSubmit}
-              onClick={e => e.stopPropagation()}>
+        <form className="edit-form" onSubmit={handleEditSubmit} onClick={e => e.stopPropagation()}>
           <label>
             Summary
             <textarea value={editSummary} onChange={e => setEditSummary(e.target.value)} rows={2} />
@@ -258,8 +287,8 @@ function IncidentDetail({ inc }: { inc: IncidentWithReport }) {
             <input value={editAction} onChange={e => setEditAction(e.target.value)} />
           </label>
           <div className="form-actions">
-            <button type="submit">Save</button>
-            <button type="button" onClick={e => { e.stopPropagation(); setEditing(false); }}>Cancel</button>
+            <button type="submit" className="btn-accept">Save</button>
+            <button type="button" className="btn-neutral" onClick={e => { e.stopPropagation(); setEditing(false); }}>Cancel</button>
           </div>
         </form>
       )}
