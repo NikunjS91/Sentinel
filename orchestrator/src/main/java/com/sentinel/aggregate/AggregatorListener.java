@@ -89,7 +89,7 @@ public class AggregatorListener {
 
     private void handleSpecialistResult(Incident inc) {
         long specialistTraces = traces.countByIncidentIdAndAgentNameNot(inc.getId(), "synthesizer");
-        int expectedCount = inc.getExpectedAgents().size();
+        int expectedCount = inc.getExpectedAgents() != null ? inc.getExpectedAgents().size() : 0;
 
         if (inc.getState() == IncidentState.DISPATCHED
                 && expectedCount > 0
