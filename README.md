@@ -10,8 +10,8 @@ dissent notes when they disagree. Every operator-reviewed incident becomes label
 data, captured in a pgvector-backed knowledge base that the History agent searches on future
 incidents.
 
-**Status:** Sprint 4 complete — 145+ tests across two languages, ruff + mypy clean,
-four parallel CI jobs green on `main`.
+**Status:** Sprint 5 in progress (Day 3 complete) — 160+ tests across two languages, ruff + mypy clean,
+four parallel CI jobs green on `main`. Cloud LLM inference via NVIDIA NIM — no local GPU required.
 [See the sprint retrospectives →](docs/retrospectives/)
 
 ---
@@ -215,9 +215,9 @@ report from whatever partial data arrived — no silent failures.
 | Agent plane | Python 3.11, FastAPI |
 | Event bus | Apache Kafka |
 | Storage | PostgreSQL 16 + pgvector, Redis 7, S3-compatible object store |
-| LLM backends | Ollama (local / dev) / Anthropic / Groq (production) |
+| LLM backends | NVIDIA NIM (cloud, default) / Ollama (local) / Anthropic / Groq |
 | Observability | Prometheus, Loki, Grafana, structured JSON logs |
-| Frontend | React 18, Vite, Tailwind CSS, Server-Sent Events |
+| Frontend | React 19, Vite, vanilla CSS, Server-Sent Events |
 | Infrastructure | Docker Compose (dev), Kubernetes (Sprint 6) |
 | CI/CD | GitHub Actions — 4 parallel jobs on every PR |
 
@@ -225,7 +225,7 @@ report from whatever partial data arrived — no silent failures.
 
 ## What's built
 
-> Sprint 4 complete — ~85 Java tests · ~60 Python tests · 8 demo-app tests · four CI jobs · 6-agent swarm + pgvector knowledge base + self-learning feedback loop
+> Sprint 5 Day 3 complete — ~85 Java tests · ~67 Python tests · 8 demo-app tests · four CI jobs · 6-agent swarm + pgvector KB + NVIDIA NIM cloud inference + worker reliability
 
 | Component | Status | Details |
 |---|---|---|
@@ -261,22 +261,27 @@ report from whatever partial data arrived — no silent failures.
 | Topology agent | ✅ Sprint 4 | Fetches `/kb/topology/{service}`, flattens neighbors, reasons about failure-propagation direction (outgoing = likely causes, incoming = likely victims); skips LLM when no topology data |
 | Runbook agent | ✅ Sprint 4 | PostgreSQL FTS over `kb_runbooks` (`to_tsvector` / `plainto_tsquery`); calibrated confidence (0.0 no match → 0.8+ strong match); post-guard fills results when LLM returns empty |
 | Six-agent dispatch | ✅ Sprint 4 | echo + log_analyzer + metrics + history + topology + runbook dispatched per incident; 2-edit extension contract held across all Sprint 4 agents |
+| Prometheus reliability counters | ✅ Sprint 5 Day 1 | `agent_timeouts_total` and `agent_deadline_breaches_total` counters; `RELIABILITY-BASELINE.md` baseline captured |
+| Model ladder | ✅ Sprint 5 Day 2 | Per-agent model registry: llama-3.1-8b (30 s) for specialists, llama-3.1-70b (180 s) for Synthesizer; resolves via `resolve_agent_spec()` |
+| NVIDIA NIM backend | ✅ Sprint 5 Day 3 | `NimClient` — OpenAI-compatible cloud inference; factory selects Ollama vs NIM via `LLM_BACKEND` env var; eliminates local GPU requirement |
+| Worker reliability | ✅ Sprint 5 Day 3 | Kafka consumer tuned (`max_poll_interval_ms=600s`, `max_poll_records=1`); two-level exception handling with supervisor auto-restart + exponential backoff; backfill task backs off on Postgres recovery |
+| UI polish + code quality | ✅ Sprint 5 Day 3 | CSS design tokens, system-ui font, wider layout, inline rejection form (replaces `window.prompt`); `raise_for_status()` on Loki calls; NPE guard in AggregatorListener; SSE emitter timeout |
 
 ---
 
 ## Getting started
 
-> **Prerequisites:** Java 21, Node 18+, Python 3.11, Docker Desktop, [Ollama](https://ollama.ai) with `qwen3:14b` pulled.
-
-```bash
-ollama pull qwen3:14b
-```
+> **Prerequisites:** Java 21, Node 18+, Python 3.11, Docker Desktop.
+> LLM inference via **NVIDIA NIM** (free API key at [build.nvidia.com](https://build.nvidia.com)) — no local GPU needed.
+> Alternatively, set `LLM_BACKEND=ollama` and `ollama pull qwen3:14b` for fully offline dev.
 
 ```bash
 # 1. Clone
 git clone https://github.com/NikunjS91/Sentinel.git
 cd Sentinel
-cp .env.example .env   # review defaults — no changes needed for local dev
+cp .env.example .env
+# Edit .env: set LLM_BACKEND=nim and NIM_API_KEY=<your key>
+# (or keep LLM_BACKEND=ollama for local inference)
 
 # 2. Start infrastructure (Postgres 16, Redis 7, Kafka, Prometheus, Loki, Grafana, Promtail, MinIO)
 docker compose up -d
@@ -301,7 +306,7 @@ curl -i -X POST http://localhost:8080/alerts \
   -d @sample-alert.json
 # 201 Created  → new incident dispatches all 6 agents
 # Same curl    → 200 OK (deduplicated — same incident ID returned)
-# Dashboard: state pill cycles RECEIVED → DISPATCHED → AGGREGATING → RESOLVED (~10 min on CPU-only Ollama)
+# Dashboard: state pill cycles RECEIVED → DISPATCHED → AGGREGATING → RESOLVED (~4 min on NIM, ~10 min on CPU-only Ollama)
 # Click the incident card to expand: summary, root cause, confidence score, dissent notes
 # Click Accept / Reject / Edit to record your decision as labeled training data
 
@@ -320,7 +325,7 @@ curl -s -X POST http://localhost:8090/admin/failure-mode \
 
 ```bash
 cd orchestrator && ./mvnw verify                       # ~85 Java tests
-cd ../agents && ruff check . && mypy . && pytest       # ~60 Python tests
+cd ../agents && ruff check . && mypy . && pytest       # ~67 Python tests
 cd ../demo-app && mvn verify                           # 8 demo-app tests
 cd ../ui && npm run build                              # TypeScript + Vite build gate
 ```
@@ -339,7 +344,7 @@ The project is built in six sprints, scoped as **Phase 1** of a longer vision.
 - [x] **Sprint 2** — Demo app + full observability stack, Log Analyzer + Metrics agents, tool layer, prompt registry, dict dispatch, swarm asymmetry codified ✅ — ~40+37+8 tests
 - [x] **Sprint 3** — Synthesizer agent, two-stage dispatch, per-incident deadlines + PARTIAL state, live React dashboard with SSE, human-in-the-loop accept/reject/edit ✅ — ~73+42+8 tests
 - [x] **Sprint 4** — 6-agent swarm (History, Topology, Runbook), pgvector knowledge base, self-learning feedback loop ✅ — ~85+60+8 tests
-- [ ] **Sprint 5** — Production hardening: eval harness, deadline calibration, circuit breakers, DLQ, token budgets
+- [ ] **Sprint 5** — Production hardening: eval harness, deadline calibration, circuit breakers, DLQ, token budgets *(Days 1–3 complete: reliability baseline, model ladder, NIM backend, worker resilience)*
 - [ ] **Sprint 6** — Kubernetes manifests, CI/CD pipeline, load testing, documentation
 
 ### Beyond Phase 1
