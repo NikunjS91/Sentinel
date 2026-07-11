@@ -37,8 +37,8 @@ class KafkaWorker:
             group_id=self.s.kafka_group_id,
             enable_auto_commit=False,
             auto_offset_reset="earliest",
-            max_poll_interval_ms=600_000,   # 10 min — headroom for slow NIM + synthesizer
-            max_poll_records=1,             # one task at a time; no batch surprises
+            max_poll_interval_ms=600_000,  # 10 min — headroom for slow NIM + synthesizer
+            max_poll_records=1,  # one task at a time; no batch surprises
             session_timeout_ms=45_000,
             heartbeat_interval_ms=15_000,
         )

@@ -119,6 +119,7 @@ async def test_tc_4_4_2_no_candidates_skips_llm() -> None:
         result = await runbook(_make_task(), _ctx(fake_llm))
 
     fake_llm.complete.assert_not_called()
+    assert result.status == "no_data"
     assert result.output["matched_runbooks"] == []
     assert result.output["confidence"] == 0.0
     assert "no runbooks" in result.output["assessment"]
@@ -134,7 +135,7 @@ async def test_tc_4_4_3_llm_unparseable_uses_fallback() -> None:
     with patch("app.agents.runbook._fetch_runbooks", new=AsyncMock(return_value=_RUNBOOK_RESPONSE)):
         result = await runbook(_make_task(), _ctx(_FakeLLM("not json at all")))
 
-    assert result.status == "ok"
+    assert result.status == "degraded"
     assert len(result.output["matched_runbooks"]) == 2
     assert result.output["confidence"] == 0.0
 
@@ -154,7 +155,7 @@ async def test_tc_4_4_4_timeout_returns_empty_gracefully() -> None:
     with patch("app.agents.runbook.httpx.AsyncClient", return_value=mock_client):
         result = await runbook(_make_task(), _ctx(_FakeLLM()))
 
-    assert result.status == "ok"
+    assert result.status == "no_data"
     assert result.output["matched_runbooks"] == []
     assert result.output["confidence"] == 0.0
 

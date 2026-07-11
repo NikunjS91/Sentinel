@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from app.agents._parse import call_with_retry, try_parse
@@ -83,6 +85,8 @@ async def test_tc_2_9_2_call_with_retry_accumulates_tokens() -> None:
     assert result.slo_status == "violations_present"
     assert stats.total_tokens == 30  # 10 + 20
     assert stats.total_latency_ms == 300  # 100 + 200
+    assert stats.fallback_reason is None
+    assert stats.status == "ok"
 
 
 @pytest.mark.asyncio
@@ -99,3 +103,34 @@ async def test_tc_2_9_2_call_with_retry_returns_fallback_on_double_failure() -> 
     assert result.confidence == 0.0
     assert result.slo_status == "ok"
     assert stats.total_tokens == 10
+    assert stats.fallback_reason == "parse_error"
+    assert stats.status == "degraded"
+
+
+# ---------------------------------------------------------------------------
+# Fallback on LLM exception must record elapsed wall-clock time, not 0ms
+# ---------------------------------------------------------------------------
+
+
+class _ExplodingLLM(LLMClient):
+    """Simulates a slow call that ultimately fails (timeout, 401, 429...)."""
+
+    async def complete(
+        self, prompt: str, model: str | None = None, timeout_s: float | None = None
+    ) -> LLMResponse:  # noqa: ARG002
+        await asyncio.sleep(0.02)
+        raise RuntimeError("simulated LLM failure")
+
+
+@pytest.mark.asyncio
+async def test_llm_error_records_elapsed_latency_and_degraded_status() -> None:
+    fallback = MetricsAgentFinding(slo_status="ok", confidence=0.0)
+    result, stats = await call_with_retry(
+        _ExplodingLLM(), "prompt", MetricsAgentFinding, fallback, "test"
+    )
+
+    assert result is fallback
+    assert stats.fallback_reason == "llm_error"
+    assert stats.status == "degraded"
+    # The failed call took ~20ms of wall clock — it must not be reported as 0.
+    assert stats.total_latency_ms > 0

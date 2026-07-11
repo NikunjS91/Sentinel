@@ -27,13 +27,14 @@ async def topology(task: AgentTask, ctx: AgentContext) -> AgentResult:
     neighbors = _flatten_neighbors(topo)
 
     if not neighbors:
+        log.info("topology: no topology data for %s — skipping LLM call", task.service)
         finding = TopologyFinding(
             neighbors=[],
             likely_implicated=[],
             assessment=f"no topology data available for {task.service}",
             confidence=0.0,
         )
-        return _success(task, finding, tokens=0, latency=0, prompt_version=None)
+        return _success(task, finding, tokens=0, latency=0, prompt_version=None, status="no_data")
 
     prompt = ctx.prompts.get("topology")
     rendered = prompt.body.replace(
@@ -57,7 +58,9 @@ async def topology(task: AgentTask, ctx: AgentContext) -> AgentResult:
     if not finding.neighbors:
         finding.neighbors = neighbors
 
-    return _success(task, finding, stats.total_tokens, stats.total_latency_ms, prompt.version)
+    return _success(
+        task, finding, stats.total_tokens, stats.total_latency_ms, prompt.version, stats.status
+    )
 
 
 async def _fetch_topology(service: str) -> dict[str, object]:
@@ -119,6 +122,7 @@ def _success(
     tokens: int,
     latency: int,
     prompt_version: str | None,
+    status: str = "ok",
 ) -> AgentResult:
     return AgentResult(
         incident_id=task.incident_id,
@@ -126,6 +130,6 @@ def _success(
         output=finding.model_dump(),
         tokens_used=tokens,
         latency_ms=latency,
-        status="ok",
+        status=status,
         prompt_version=prompt_version,
     )

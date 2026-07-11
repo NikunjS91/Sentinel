@@ -11,7 +11,8 @@ from __future__ import annotations
 import json
 import logging
 import re
-from typing import TypeVar
+import time
+from typing import Literal, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
@@ -27,10 +28,23 @@ _FENCE_RE = re.compile(r"^```(?:json)?|```$", re.MULTILINE)
 
 
 class LLMStats(BaseModel):
-    """Accumulates tokens + latency across one or more LLM calls."""
+    """Accumulates tokens + latency across one or more LLM calls.
+
+    `fallback_reason` is set when call_with_retry returned the caller's
+    fallback instead of a parsed LLM result — agents use it to report
+    status="degraded" instead of masquerading as "ok"."""
 
     total_tokens: int = 0
     total_latency_ms: int = 0
+    fallback_reason: Literal["llm_error", "parse_error"] | None = None
+
+    @property
+    def status(self) -> str:
+        return "degraded" if self.fallback_reason else "ok"
+
+
+def _elapsed_ms(t0: float) -> int:
+    return int((time.monotonic() - t0) * 1000)
 
 
 def try_parse(text: str, model: type[T]) -> T | None:
@@ -64,9 +78,14 @@ async def call_with_retry(
     stats = LLMStats()
     spec = resolve_agent_spec(agent_name)
 
+    t0 = time.monotonic()
     try:
         resp = await llm.complete(prompt, model=spec.model, timeout_s=spec.timeout_s)
     except Exception:
+        # A failed call still took wall-clock time — a 30s timeout must not
+        # be recorded as 0ms.
+        stats.total_latency_ms += _elapsed_ms(t0)
+        stats.fallback_reason = "llm_error"
         AGENT_TIMEOUTS.labels(agent_name=agent_name).inc()
         log.exception("%s: LLM call failed; returning fallback", agent_name)
         return fallback, stats
@@ -83,9 +102,12 @@ async def call_with_retry(
         "ONLY a single JSON object matching the schema above. No prose, "
         "no markdown fences."
     )
+    t1 = time.monotonic()
     try:
         resp2 = await llm.complete(nudge, model=spec.model, timeout_s=spec.timeout_s)
     except Exception:
+        stats.total_latency_ms += _elapsed_ms(t1)
+        stats.fallback_reason = "llm_error"
         AGENT_TIMEOUTS.labels(agent_name=agent_name).inc()
         log.exception("%s: LLM retry call failed; returning fallback", agent_name)
         return fallback, stats
@@ -96,5 +118,6 @@ async def call_with_retry(
     if parsed is not None:
         return parsed, stats
 
+    stats.fallback_reason = "parse_error"
     log.error("%s: parse failed after retry; returning fallback", agent_name)
     return fallback, stats

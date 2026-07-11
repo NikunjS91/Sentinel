@@ -29,12 +29,13 @@ async def runbook(task: AgentTask, ctx: AgentContext) -> AgentResult:
     candidates = await _fetch_runbooks(query)
 
     if not candidates:
+        log.info("runbook: no runbooks found for %s — skipping LLM call", task.service)
         finding = RunbookFinding(
             matched_runbooks=[],
             assessment=f"no runbooks found for {task.service}",
             confidence=0.0,
         )
-        return _success(task, finding, tokens=0, latency=0, prompt_version=None)
+        return _success(task, finding, tokens=0, latency=0, prompt_version=None, status="no_data")
 
     prompt = ctx.prompts.get("runbook")
     rendered = prompt.body.replace("{current_incident}", json.dumps(_incident_view(task))).replace(
@@ -57,7 +58,9 @@ async def runbook(task: AgentTask, ctx: AgentContext) -> AgentResult:
     if not finding.matched_runbooks:
         finding.matched_runbooks = [_to_match(c) for c in candidates]
 
-    return _success(task, finding, stats.total_tokens, stats.total_latency_ms, prompt.version)
+    return _success(
+        task, finding, stats.total_tokens, stats.total_latency_ms, prompt.version, stats.status
+    )
 
 
 async def _fetch_runbooks(query: str) -> list[dict[str, object]]:
@@ -115,6 +118,7 @@ def _success(
     tokens: int,
     latency: int,
     prompt_version: str | None,
+    status: str = "ok",
 ) -> AgentResult:
     return AgentResult(
         incident_id=task.incident_id,
@@ -122,6 +126,6 @@ def _success(
         output=finding.model_dump(),
         tokens_used=tokens,
         latency_ms=latency,
-        status="ok",
+        status=status,
         prompt_version=prompt_version,
     )

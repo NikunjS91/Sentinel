@@ -185,7 +185,7 @@ async def test_tc_5_3_3_handle_exception_skips_commit() -> None:
     async def _fail_handle(_raw: bytes) -> None:
         raise ValueError("bad message")
 
-    worker._handle = _fail_handle  # type: ignore[method-assign]
+    worker._handle = _fail_handle  # type: ignore[method-assign, assignment]
 
     fake_msg = MagicMock()
     fake_msg.value = b"irrelevant"
@@ -202,7 +202,7 @@ async def test_tc_5_3_3_handle_exception_skips_commit() -> None:
         commit_called = True
 
     fake_consumer.commit = _fake_commit
-    worker._consumer = fake_consumer  # type: ignore[assignment]
+    worker._consumer = fake_consumer
 
     try:
         await worker._consume_loop()
@@ -239,11 +239,11 @@ async def test_tc_5_3_5_backfill_exponential_backoff() -> None:
             raise asyncpg.PostgresConnectionError("connection refused")
         task._stop.set()
 
-    async def _fake_wait_for(coro: object, timeout: float) -> None:  # noqa: ARG001
+    async def _fake_wait_for(coro: object, timeout: float) -> None:  # noqa: ARG001, ASYNC109
         sleep_calls.append(timeout)
         raise TimeoutError
 
-    task._pass = _fake_pass  # type: ignore[method-assign]
+    task._pass = _fake_pass  # type: ignore[method-assign, assignment]
 
     with patch("app.embedding.backfill_task.asyncio.wait_for", side_effect=_fake_wait_for):
         with patch("app.embedding.backfill_task.make_embedding_client", return_value=MagicMock()):

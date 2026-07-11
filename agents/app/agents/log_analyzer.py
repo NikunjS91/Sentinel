@@ -43,6 +43,6 @@ async def log_analyzer(task: AgentTask, ctx: AgentContext) -> AgentResult:
         output=finding.model_dump(),
         tokens_used=stats.total_tokens,
         latency_ms=stats.total_latency_ms,
-        status="ok",
+        status=stats.status,
         prompt_version=prompt.version,
     )

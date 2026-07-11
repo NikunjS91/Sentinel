@@ -103,6 +103,7 @@ async def test_tc_4_3_2_empty_topology_skips_llm() -> None:
         result = await topology(_make_task(), _ctx(fake_llm))
 
     fake_llm.complete.assert_not_called()
+    assert result.status == "no_data"
     assert result.output["neighbors"] == []
     assert result.output["confidence"] == 0.0
     assert "no topology data available" in result.output["assessment"]
@@ -123,7 +124,7 @@ async def test_tc_4_3_3_timeout_returns_empty_gracefully() -> None:
     with patch("app.agents.topology.httpx.AsyncClient", return_value=mock_client):
         result = await topology(_make_task(), _ctx(_FakeLLM()))
 
-    assert result.status == "ok"
+    assert result.status == "no_data"
     assert result.output["neighbors"] == []
     assert result.output["confidence"] == 0.0
 

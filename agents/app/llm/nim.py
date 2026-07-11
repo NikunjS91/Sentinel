@@ -56,9 +56,7 @@ class NimClient:
         }
 
         t0 = time.monotonic()
-        async with httpx.AsyncClient(
-            timeout=t, transport=self._transport
-        ) as client:
+        async with httpx.AsyncClient(timeout=t, transport=self._transport) as client:
             resp = await client.post(
                 f"{self._base_url}/chat/completions",
                 json=payload,
