@@ -25,6 +25,7 @@ _TOP_K = 5
 async def history(task: AgentTask, ctx: AgentContext) -> AgentResult:
     """Find past incidents similar to the current one."""
     if ctx.embedder is None:
+        log.warning("history: no embedder configured — returning degraded fallback")
         return _fallback(task, "history agent has no embedder configured")
 
     query_text = _build_query_text(task)
@@ -37,13 +38,14 @@ async def history(task: AgentTask, ctx: AgentContext) -> AgentResult:
 
     candidates = await _search_kb(emb_resp.vector)
     if not candidates:
+        log.info("history: no KB candidates for %s — skipping LLM call", task.service)
         finding = HistoryFinding(
             matched_incidents=[],
             most_relevant_match_id=None,
             assessment="no candidates returned from knowledge base",
             confidence=0.0,
         )
-        return _success(task, finding, 0, 0, None)
+        return _success(task, finding, 0, 0, None, status="no_data")
 
     prompt = ctx.prompts.get("history")
     rendered = prompt.body.replace(
@@ -69,7 +71,9 @@ async def history(task: AgentTask, ctx: AgentContext) -> AgentResult:
             update={"matched_incidents": [_to_matched(c) for c in candidates[:_TOP_K]]}
         )
 
-    return _success(task, finding, stats.total_tokens, stats.total_latency_ms, prompt.version)
+    return _success(
+        task, finding, stats.total_tokens, stats.total_latency_ms, prompt.version, stats.status
+    )
 
 
 def _build_query_text(task: AgentTask) -> str:
@@ -140,6 +144,7 @@ def _success(
     stats_tokens: int,
     stats_latency: int,
     prompt_version: str | None,
+    status: str = "ok",
 ) -> AgentResult:
     return AgentResult(
         incident_id=task.incident_id,
@@ -147,7 +152,7 @@ def _success(
         output=finding.model_dump(),
         tokens_used=stats_tokens or 0,
         latency_ms=stats_latency or 0,
-        status="ok",
+        status=status,
         prompt_version=prompt_version,
     )
 
@@ -159,4 +164,4 @@ def _fallback(task: AgentTask, reason: str) -> AgentResult:
         assessment=f"(history agent could not run: {reason})",
         confidence=0.0,
     )
-    return _success(task, finding, 0, 0, None)
+    return _success(task, finding, 0, 0, None, status="degraded")

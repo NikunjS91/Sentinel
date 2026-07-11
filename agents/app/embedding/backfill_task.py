@@ -45,7 +45,9 @@ class EmbeddingBackfillTask:
                 await self._pass(embedder)
                 backoff = self.interval_s  # reset on success
             except asyncpg.PostgresConnectionError as exc:
-                log.warning("backfill: Postgres unavailable (%s); retrying in %.0fs", exc, sleep_for)
+                log.warning(
+                    "backfill: Postgres unavailable (%s); retrying in %.0fs", exc, sleep_for
+                )
                 backoff = min(backoff * 2, 300.0)  # double for next failure
             except Exception:  # noqa: BLE001
                 log.exception("backfill pass failed; continuing")

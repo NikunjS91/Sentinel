@@ -139,7 +139,7 @@ async def test_tc_4_2_2_empty_kb_returns_no_match() -> None:
     with patch("app.agents.history._search_kb", new=AsyncMock(return_value=[])):
         result = await history(_make_task(), _ctx(_TrackingLLM()))
 
-    assert result.status == "ok"
+    assert result.status == "no_data"
     assert result.output["matched_incidents"] == []
     assert result.output["most_relevant_match_id"] is None
     assert result.output["confidence"] == 0.0
@@ -162,7 +162,7 @@ async def test_tc_4_2_3_kb_timeout_returns_graceful_fallback() -> None:
     with patch("app.agents.history.httpx.AsyncClient", return_value=mock_client):
         result = await history(_make_task(), _ctx(_FakeLLM([])))
 
-    assert result.status == "ok"
+    assert result.status == "no_data"
     assert result.output["matched_incidents"] == []
     assert result.output["confidence"] == 0.0
 

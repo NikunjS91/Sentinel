@@ -129,7 +129,7 @@ async def test_tc_2_8_3_persistent_parse_failure(monkeypatch: pytest.MonkeyPatch
 
     result = await log_analyzer(task, AgentContext(llm=llm, prompts=registry))
 
-    assert result.status == "ok"
+    assert result.status == "degraded"
     assert result.output["confidence"] == 0.0
     assert any("not parseable" in e for e in result.output["supporting_evidence"])
     assert llm._call_count == 2

@@ -2,11 +2,23 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+_AGENTS_DIR = Path(__file__).resolve().parents[1]
+_REPO_ROOT = _AGENTS_DIR.parent
+
 
 class Settings(BaseSettings):
-    """Runtime configuration, loaded from environment / .env."""
+    """Runtime configuration, loaded from environment / .env.
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    env_file paths are anchored to this file, not the CWD — a bare ".env"
+    silently loads nothing when the service is started from agents/ while
+    the canonical .env lives at the repo root, flipping llm_backend back
+    to its ollama default. Later files override earlier ones; real
+    environment variables override both."""
+
+    model_config = SettingsConfigDict(
+        env_file=(_REPO_ROOT / ".env", _AGENTS_DIR / ".env"),
+        extra="ignore",
+    )
 
     # Kafka
     kafka_bootstrap: str = "localhost:9092"

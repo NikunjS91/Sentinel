@@ -25,5 +25,8 @@ class AgentResult(BaseModel):
     output: dict[str, Any]
     tokens_used: int = Field(default=0, alias="tokensUsed")
     latency_ms: int = Field(default=0, alias="latencyMs")
+    # "ok" — real LLM-backed result · "degraded" — fallback fired (LLM error
+    # or unparseable output) · "no_data" — nothing to analyze, LLM skipped ·
+    # "error" — agent raised. Stored verbatim in agent_traces.status.
     status: str = "ok"
     prompt_version: str | None = Field(default=None, alias="promptVersion")

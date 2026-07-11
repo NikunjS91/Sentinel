@@ -142,7 +142,7 @@ async def test_tc_2_9_5_persistent_failure_yields_fallback(monkeypatch: pytest.M
 
     result = await metrics_agent(task, AgentContext(llm=llm, prompts=registry))
 
-    assert result.status == "ok"
+    assert result.status == "degraded"
     output = result.output
     assert output["confidence"] == 0.0
     assert output["slo_status"] == "ok"
